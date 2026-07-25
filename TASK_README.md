@@ -125,11 +125,13 @@ exposing credentials, sessions, logs, or other runtime state.
 - [x] Build, smoke, stress, security, and regression tests pass.
 - [x] Inspect the packaged artifact and full intended diff.
 - [x] Commit only intended files to the feature branch after final checks.
-- [ ] Push the feature branch to `juliaError/codexpro_mo`.
-- [ ] Create a draft PR inside `juliaError/codexpro_mo`, targeting its `main`.
+- [x] Push the feature branch to `juliaError/codexpro_mo`.
+- [x] Create draft PR
+  [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1),
+  targeting the fork's `main`.
 
-## Current blocker
+## Publication result
 
-The final `gh auth status` recheck still reports that the saved token for
-`juliaError` is invalid. The verified local commit is ready; push and draft-PR
-creation require `gh auth login -h github.com` before publication.
+GitHub authentication was confirmed outside the filesystem sandbox for account
+`juliaError`. The branch and draft PR were published on 2026-07-25. No PR was
+opened against `rebel0789/codexpro`.
