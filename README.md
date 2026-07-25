@@ -126,16 +126,15 @@ CODEXPRO_TOOL_CARDS=1 codexpro start
 
 ## Dynamic Codex Instructions And Skills
 
-This fork has an opt-in Codex compatibility layer:
+This fork enables strict Codex compatibility by default:
 
 ```bash
-codexpro native
+codexpro start
 ```
 
-`codexpro native` is the short form of
-`codexpro start --codex-compat strict`. Alternatively, save strict mode once
-with `codexpro settings set --codex-compat strict`; future launches from that
-workspace then only need `codexpro start`.
+No per-workspace compatibility setting is required. Existing profiles without a
+`codexCompat` field also inherit `strict`. `codexpro native` remains an explicit
+alias, while `codexpro start --codex-compat off` opts out for one launch.
 
 Call `codex_bootstrap` before working. It dynamically reads the current global
 Codex instruction file, the effective project `AGENTS.md` chain from the
@@ -147,9 +146,9 @@ No files are copied. Changes made by a later Codex or skill upgrade are read on
 the next bootstrap. In `strict` mode, CodexPro recomputes the context hash before
 writes and bash, and fails closed when the bootstrap is missing or stale.
 
-- `off` (default) preserves the existing CodexPro tool surface and behavior.
+- `off` explicitly preserves the existing CodexPro tool surface and behavior.
 - `safe` exposes `codex_bootstrap` and `load_skill_resource` without an execution-order gate.
-- `strict` requires a matching fresh bootstrap before writes, patches, handoff/context exports, and bash.
+- `strict` (fork default) requires a matching fresh bootstrap before writes, patches, handoff/context exports, and bash.
 
 The layer does not import Codex credentials, sessions, memories, logs, model
 state, MCP runtime, approvals, or sandbox policy, and it does not claim runtime

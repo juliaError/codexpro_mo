@@ -3,6 +3,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+// Stress the legacy mutation surface explicitly; strict bootstrap behavior has
+// its own isolated security suite.
+process.env.CODEXPRO_CODEX_COMPAT = 'off';
+
 function assert(ok, message) {
   if (!ok) throw new Error(message);
 }

@@ -187,6 +187,7 @@ const commonEnv = {
   CODEXPRO_ROOT: workspace,
   CODEXPRO_ALLOWED_ROOTS: workspace,
   CODEXPRO_CODEX_DIR: codexHome,
+  CODEXPRO_CODEX_COMPAT: '',
   CODEXPRO_TOOL_CARDS: '0'
 };
 
@@ -201,6 +202,13 @@ const invalidMode = spawnSync(
   { cwd: path.resolve('.'), env: { ...process.env, ...commonEnv }, encoding: 'utf8' }
 );
 assert(invalidMode.status !== 0 && /must be off, safe, or strict/i.test(invalidMode.stderr), 'invalid direct MCP compatibility mode did not fail closed');
+
+const defaultStrict = await connect(commonArgs, commonEnv, 'codexpro-compat-default-strict');
+const defaultStrictTools = await defaultStrict.request('tools/list', {});
+const defaultStrictNames = defaultStrictTools.tools.map((tool) => tool.name);
+assert(defaultStrictNames.includes('codex_bootstrap'), 'default mode did not expose codex_bootstrap');
+await expectToolError(defaultStrict, 'write', { path: 'default-strict.txt', content: 'blocked\n' }, /fresh codex_bootstrap/i);
+defaultStrict.close();
 
 const strict = await connect([...commonArgs, '--codex-compat', 'strict'], commonEnv, 'codexpro-compat-strict');
 const strictTools = await strict.request('tools/list', {});
@@ -361,7 +369,7 @@ const safeWrite = await safe.request('tools/call', { name: 'write', arguments: {
 assert(!safeWrite.isError, `safe mode unexpectedly required bootstrap: ${resultText(safeWrite)}`);
 safe.close();
 
-const off = await connect(commonArgs, commonEnv, 'codexpro-compat-off');
+const off = await connect([...commonArgs, '--codex-compat', 'off'], commonEnv, 'codexpro-compat-off');
 const offTools = await off.request('tools/list', {});
 const offToolNames = offTools.tools.map((tool) => tool.name);
 assert(!offToolNames.includes('codex_bootstrap') && !offToolNames.includes('load_skill_resource'), 'off mode exposed compatibility tools');

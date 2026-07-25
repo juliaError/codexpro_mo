@@ -3,6 +3,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+// This suite exercises the legacy tool flow explicitly; default-strict behavior
+// is covered by codex-compat-smoke.mjs.
+process.env.CODEXPRO_CODEX_COMPAT = 'off';
+
 function encode(message) {
   return `${JSON.stringify(message)}\n`;
 }

@@ -321,18 +321,19 @@ Use it with repos you trust. Keep token auth enabled for public tunnels. Keep sa
 
 ## Does CodexPro copy or directly read Codex AGENTS.md files and skills?
 
-With `--codex-compat safe|strict`, each `codex_bootstrap` reads the current
-supported files directly. It does not copy the Codex home into CodexPro.
+This fork defaults to strict compatibility, so plain `codexpro start` exposes
+`codex_bootstrap` and reads the current supported files directly. It does not
+copy the Codex home into CodexPro.
 
-For strict mode, use the short launcher:
+No per-workspace compatibility setup is required:
 
 ```bash
-codexpro native
+codexpro start
 ```
 
-It is equivalent to `codexpro start --codex-compat strict`. You can instead
-save strict mode once with `codexpro settings set --codex-compat strict`, then
-use plain `codexpro start` in that workspace.
+Old profiles without a compatibility field inherit strict mode. Use
+`codexpro start --codex-compat off` only when you explicitly want the legacy
+tool flow for one launch.
 
 The effective context uses the global override-or-default instruction, followed
 by one highest-priority project instruction per directory from the workspace

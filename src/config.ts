@@ -170,8 +170,8 @@ function codexSessionsFrom(value: string | undefined): CodexSessionsMode {
 }
 
 function codexCompatModeFrom(value: string | undefined): CodexCompatMode {
-  if (value === undefined || value === "" || value === "off") return "off";
-  if (value === "safe" || value === "strict") return value;
+  if (value === undefined || value === "" || value === "strict") return "strict";
+  if (value === "off" || value === "safe") return value;
   throw new Error("CODEXPRO_CODEX_COMPAT / --codex-compat must be off, safe, or strict.");
 }
 

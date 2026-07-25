@@ -2,10 +2,12 @@
 
 ## Final objective
 
-Implement and verify a safe, opt-in Codex compatibility layer for
+Implement and verify a safe Codex compatibility layer for
 `juliaError/codexpro_mo` that dynamically reads the user's current Codex
 instructions and skills without copying the whole Codex home directory or
-exposing credentials, sessions, logs, or other runtime state.
+exposing credentials, sessions, logs, or other runtime state. As explicitly
+requested in v5, this fork now defaults to strict compatibility without
+per-workspace enablement.
 
 ## Repository state
 
@@ -23,7 +25,8 @@ exposing credentials, sessions, logs, or other runtime state.
 - Do not expose or copy `auth.json`, sessions, archived sessions, logs,
   credentials, private keys, or unrelated Codex runtime files.
 - Do not present ChatGPT/MCP behavior as identical to the native Codex runtime.
-- Keep compatibility opt-in until the full regression and security suite passes.
+- Keep compatibility opt-in until the original regression and security suite
+  passes; only then may a separately authorized default change be applied.
 - Do not open a pull request against the upstream author's repository.
 
 ## Target behavior
@@ -138,6 +141,9 @@ opened against `rebel0789/codexpro`.
 
 ### v4: Simplified strict-mode startup
 
+Superseded by v5: the shortcut remains, but plain `codexpro start` is now the
+recommended default-strict command.
+
 - [x] Preserve `off` as the default for backward compatibility.
 - [x] Add `codexpro native` as an explicit shortcut that always selects strict
   Codex compatibility, even when a saved profile or command-line option says
@@ -147,5 +153,20 @@ opened against `rebel0789/codexpro`.
   `codexpro start`.
 - [x] Run focused help-output and build checks, then the full `npm run smoke`
   suite, including the settings/runtime shortcut test.
+- [x] Commit and update draft PR
+  [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1).
+
+### v5: Default strict compatibility without per-project setup
+
+- [x] Supersede the v2/v4 default-off decision at the user's explicit request.
+- [x] Make missing or empty compatibility configuration resolve to `strict` in
+  both the launcher and direct MCP server.
+- [x] Treat old workspace profiles without `codexCompat` as strict.
+- [x] Persist explicit `off` so users can still opt out intentionally.
+- [x] Make plain `codexpro start` the documented normal command.
+- [x] Run focused default/opt-out tests plus full smoke and stress suites.
+- [x] Verify the installable artifact with isolated-cache `npm pack --dry-run`;
+  the package includes the rebuilt strict-default configuration, launcher,
+  compatibility module, tests, and documentation.
 - [x] Commit and update draft PR
   [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1).

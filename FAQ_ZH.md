@@ -108,7 +108,7 @@ ChatGPT 能看到工具显式暴露的工作区内容：
 
 ## CodexPro 会复制还是直接读取我的 Codex AGENTS.md 和技能？
 
-启用 `--codex-compat safe|strict` 后，它会在每次 `codex_bootstrap` 时直接读取当前文件，不会把 `~/.codex` 复制到 CodexPro。
+这个 fork 默认使用 strict 兼容模式。直接运行 `codexpro start` 后，它会在每次 `codex_bootstrap` 时读取当前文件，不会把 `~/.codex` 复制到 CodexPro。
 
 所谓“合并”是：
 
@@ -119,15 +119,14 @@ ChatGPT 能看到工具显式暴露的工作区内容：
 
 所以以后原生 Codex 或你的 skills 更新，不需要手动“传给” CodexPro；重新调用 bootstrap 即可。若 Codex 将来改变文件格式或优先级规则，这个兼容层本身仍可能需要升级。
 
-建议使用：
+不需要给每个项目单独设置，直接使用：
 
 ```bash
-codexpro native
+codexpro start
 ```
 
-它等价于 `codexpro start --codex-compat strict`。如果希望继续使用原来的
-启动命令，可以执行一次 `codexpro settings set --codex-compat strict`，
-以后在该工作区只需运行 `codexpro start`。
+没有 `codexCompat` 字段的旧 profile 也会自动使用 strict。只有某次确实想
+关闭兼容层时，才运行 `codexpro start --codex-compat off`。
 
 strict 模式在任何受支持的写入或 bash 操作前复核上下文；如果规则或 skill 在 bootstrap 后变化，操作会失败并要求重新 bootstrap。
 

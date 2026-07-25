@@ -1,31 +1,27 @@
 # Codex compatibility mode
 
-CodexPro can expose a small, opt-in compatibility layer that reads the current
-Codex instruction and skill files at request time. It does not copy Codex state
-and does not make the ChatGPT/MCP runtime identical to native Codex.
+This fork enables a bounded compatibility layer by default. It reads the
+current Codex instruction and skill files at request time, does not copy Codex
+state, and does not make the ChatGPT/MCP runtime identical to native Codex.
 
 ## Modes
 
-- `off` (default): preserve the existing CodexPro tool surface and behavior.
+- `off`: explicitly preserve the existing CodexPro tool surface and behavior.
 - `safe`: expose `codex_bootstrap` and `load_skill_resource`, but do not require
   a bootstrap before mutations.
-- `strict`: expose the same tools and reject source writes, edits, patches,
+- `strict` (fork default): expose the same tools and reject source writes, edits, patches,
   handoff/context writes, self-test mutation probes, and `bash` until a fresh
   bootstrap exists for the affected target context.
 
-The shortest strict-mode launcher is:
+No per-workspace compatibility setup is required:
 
 ```bash
-codexpro native
-```
-
-It is equivalent to `codexpro start --codex-compat strict`. To make the normal
-start command use strict mode for this workspace, save it once:
-
-```bash
-codexpro settings set --codex-compat strict
 codexpro start
 ```
+
+Profiles created before this feature and lacking `codexCompat` inherit
+`strict`. `codexpro native` remains an explicit alias. Use
+`codexpro start --codex-compat off` to opt out for one launch.
 
 The environment-variable form is:
 

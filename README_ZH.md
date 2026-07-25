@@ -112,20 +112,15 @@ ChatGPT Web 可以操作：
 
 ### 动态读取 Codex 规则和技能
 
-这个 fork 可以选择性启用 Codex 兼容层：
+这个 fork 默认启用 strict Codex 兼容层：
 
 ```bash
-codexpro native
+codexpro start
 ```
 
-`codexpro native` 是 `codexpro start --codex-compat strict` 的快捷写法。
-也可以只设置一次：
-
-```bash
-codexpro settings set --codex-compat strict
-```
-
-此后在该工作区只需运行 `codexpro start`。
+不需要给每个项目单独设置。没有 `codexCompat` 字段的旧 profile 也会自动
+继承 `strict`。`codexpro native` 仍可作为显式快捷别名；若某次确实要关闭，
+使用 `codexpro start --codex-compat off`。
 
 启动后先调用 `codex_bootstrap`。它会在调用时动态读取：
 
@@ -138,9 +133,9 @@ codexpro settings set --codex-compat strict
 
 三种模式：
 
-- `off`：默认值，完全保留原来的 CodexPro 工具和执行顺序。
+- `off`：显式关闭兼容层，保留原来的 CodexPro 工具和执行顺序。
 - `safe`：提供 `codex_bootstrap` 和 `load_skill_resource`，但不强制执行顺序。
-- `strict`：写入、编辑、patch、handoff/context 导出和 bash 前必须有匹配的最新 bootstrap。
+- `strict`：这个 fork 的默认值；写入、编辑、patch、handoff/context 导出和 bash 前必须有匹配的最新 bootstrap。
 
 兼容层不会导入 `auth.json`、Codex sessions、memory、日志、模型状态、MCP 运行时、审批或 sandbox 配置，也不声称 ChatGPT MCP 与原生 Codex agent 完全一致。完整边界见 [Codex compatibility mode](docs/CODEX_COMPAT.md)。
 

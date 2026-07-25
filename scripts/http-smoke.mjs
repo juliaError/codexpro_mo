@@ -7,6 +7,10 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+// Keep legacy HTTP-flow assertions explicit. Default-strict behavior is covered
+// by the dedicated compatibility and launcher tests.
+process.env.CODEXPRO_CODEX_COMPAT = 'off';
+
 async function getFreePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();

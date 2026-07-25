@@ -192,9 +192,12 @@ const policyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-po
 const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-runtime-'));
 const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-stale-'));
 const nativeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-native-'));
+const defaultStrictRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-default-strict-'));
+const explicitOffRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-explicit-off-'));
 const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-ngrok-'));
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-home-'));
 const env = { ...process.env, CODEXPRO_HOME: home };
+delete env.CODEXPRO_CODEX_COMPAT;
 function withoutProxyEnv(input) {
   const next = { ...input };
   for (const key of ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'HTTP_PROXY', 'http_proxy']) delete next[key];
@@ -209,6 +212,50 @@ const emptyEquals = run([`settings`, `show`, `--root=${root}`], env);
 if (!emptyEquals.includes('No saved settings')) {
   throw new Error(`expected --root= settings output, got:\n${emptyEquals}`);
 }
+
+const defaultStrictPort = await getFreePort();
+const defaultStrictRuntimePath = await runtimeStatusPath(defaultStrictRoot, home);
+await withStartedCodexPro([
+  '--root',
+  defaultStrictRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(defaultStrictPort),
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    defaultStrictRuntimePath,
+    (data) => data.codexCompat === 'strict' && data.pid === child.pid,
+    'default strict runtime status'
+  );
+  if (runtime.codexCompat !== 'strict') {
+    throw new Error(`plain codexpro start was not strict by default: ${JSON.stringify(runtime)}`);
+  }
+});
+
+const explicitOffPort = await getFreePort();
+const explicitOffRuntimePath = await runtimeStatusPath(explicitOffRoot, home);
+await withStartedCodexPro([
+  '--root',
+  explicitOffRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(explicitOffPort),
+  '--codex-compat',
+  'off',
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    explicitOffRuntimePath,
+    (data) => data.codexCompat === 'off' && data.pid === child.pid,
+    'explicit off runtime status'
+  );
+  if (runtime.codexCompat !== 'off') {
+    throw new Error(`explicit compatibility opt-out was ignored: ${JSON.stringify(runtime)}`);
+  }
+});
 
 const nativeHelp = run(['native', '--help'], env);
 if (!nativeHelp.includes('codexpro native') || !nativeHelp.includes('strict Codex compatibility')) {

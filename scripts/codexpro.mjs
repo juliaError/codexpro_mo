@@ -76,7 +76,8 @@ Options:
                              metadata lists ids/titles/cwd; read allows bounded transcript reads.
   --codex-dir <dir>          Codex config/session directory. Default: ~/.codex.
   --codex-compat <off|safe|strict>
-                             Opt in to dynamic Codex instructions and skills.
+                             Dynamic Codex instructions and skills mode.
+                             Default in this fork: strict. Use off to opt out.
                              strict requires a fresh codex_bootstrap before writes or bash.
   native                    Shortcut for start with strict Codex compatibility.
   --write <off|handoff|workspace>
@@ -819,7 +820,7 @@ function codexSessionsOption(args, profile = {}) {
 }
 
 function codexCompatOption(args, profile = {}) {
-  const value = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'off');
+  const value = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'strict');
   if (value === 'off' || value === 'safe' || value === 'strict') return value;
   throw new Error('--codex-compat must be off, safe, or strict.');
 }
@@ -2916,7 +2917,7 @@ async function runDoctor(argv) {
     writeError = error instanceof Error ? error.message : String(error);
   }
   const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], 'standard');
-  const codexCompat = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'off');
+  const codexCompat = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'strict');
   const stableHostname = args.hostname
     ?? args.url
     ?? process.env.CODEXPRO_PUBLIC_HOSTNAME
@@ -3135,7 +3136,7 @@ function profileFromPreference(root, args, profile, preference) {
     ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
     ...(codexSessions !== 'off' ? { codexSessions } : {}),
     ...(codexDir ? { codexDir } : {}),
-    ...(codexCompat !== 'off' ? { codexCompat } : {}),
+    codexCompat,
     ...(bashSession ? { bashSession } : {}),
     ...(requireBashSession ? { requireBashSession: true } : {}),
     ...(write ? { write } : {}),
@@ -3269,7 +3270,7 @@ async function runSetupWizard(argv) {
     if (bashTranscript !== 'compact') args.push('--bash-transcript', bashTranscript);
     if (codexSessions !== 'off') args.push('--codex-sessions', codexSessions);
     if (codexDir) args.push('--codex-dir', codexDir);
-    if (codexCompat !== 'off') args.push('--codex-compat', codexCompat);
+    args.push('--codex-compat', codexCompat);
     const { bashSession, requireBashSession } = bashSessionOptions(defaults, profile);
     if (bashSession) args.push('--bash-session', bashSession);
     if (requireBashSession) args.push('--require-bash-session');
@@ -3364,7 +3365,7 @@ async function runSetupWizard(argv) {
         ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
         ...(codexSessions !== 'off' ? { codexSessions } : {}),
         ...(codexDir ? { codexDir } : {}),
-        ...(codexCompat !== 'off' ? { codexCompat } : {}),
+        codexCompat,
         ...(bashSession ? { bashSession } : {}),
         ...(requireBashSession ? { requireBashSession: true } : {}),
         ...(write ? { write } : {}),
@@ -3419,7 +3420,7 @@ function printProfile(root, profile) {
     ...(safe.toolCards !== undefined ? [labelValue('Tool cards', safe.toolCards ? 'on' : 'off')] : []),
     labelValue('Bash transcript', safe.bashTranscript ?? 'compact'),
     labelValue('Codex sessions', safe.codexSessions ?? 'off'),
-    labelValue('Codex compat', safe.codexCompat ?? 'off'),
+    labelValue('Codex compat', safe.codexCompat ?? 'strict'),
     ...(safe.codexDir ? [labelValue('Codex dir', safe.codexDir)] : []),
     ...(safe.bashSession ? [labelValue('Bash session', `${safe.bashSession}${safe.requireBashSession ? ' required' : ''}`)] : []),
     ...(safe.widgetDomain ? [labelValue('Widget origin', safe.widgetDomain)] : []),
@@ -3495,7 +3496,7 @@ function saveSettingsFromArgs(root, args, profile) {
     ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
     ...(codexSessions !== 'off' ? { codexSessions } : {}),
     ...(codexDir ? { codexDir } : {}),
-    ...(codexCompat !== 'off' ? { codexCompat } : {}),
+    codexCompat,
     ...(bashSession ? { bashSession } : {}),
     ...(requireBashSession ? { requireBashSession: true } : {}),
     ...(mode !== 'agent' || args.write !== undefined || profile.write ? { write } : {}),
