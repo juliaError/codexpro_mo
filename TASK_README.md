@@ -184,6 +184,7 @@ recommended default-strict command.
   skipped under the local npm security policy.
 - [x] Stop relying on lifecycle execution by tracking the compiled `dist/`
   output in this fork.
-- [ ] Verify build reproducibility, package contents, and an isolated GitHub
-  branch install with executable `codexpro` and default strict mode.
-- [ ] Commit, publish, and merge the install-readiness follow-up into `main`.
+- [x] Verify build reproducibility, package contents, and an isolated GitHub
+  branch install with `--ignore-scripts`, executable `codexpro`, required
+  `dist` files, and doctor reporting default strict mode.
+- [x] Commit, publish, and merge the install-readiness follow-up into `main`.
