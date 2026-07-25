@@ -29,6 +29,13 @@ Install the CLI:
 npm install -g codexpro
 ```
 
+Install this default-strict fork directly from GitHub:
+
+```bash
+npm install -g github:juliaError/codexpro_mo
+codexpro start
+```
+
 Run setup inside the repo you want ChatGPT to work on:
 
 ```bash

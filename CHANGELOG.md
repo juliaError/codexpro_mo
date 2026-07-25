@@ -2,6 +2,8 @@
 
 ## Unreleased — Codex native compatibility fork
 
+- Tracked the compiled `dist/` output so GitHub installs remain runnable when
+  local npm security policy skips Git-dependency lifecycle builds.
 - Changed this fork's compatibility default to `strict` across direct MCP
   servers and the launcher. Plain `codexpro start` now needs no per-workspace
   compatibility setup; explicit `--codex-compat off` remains available.
