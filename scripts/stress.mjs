@@ -3,6 +3,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+// Stress the legacy mutation surface explicitly; strict bootstrap behavior has
+// its own isolated security suite.
+process.env.CODEXPRO_CODEX_COMPAT = 'off';
+
 function assert(ok, message) {
   if (!ok) throw new Error(message);
 }
@@ -382,13 +386,18 @@ async function runFullModeStress(root) {
 async function runGlobalSkillStress(root) {
   void root;
   const isolatedRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-global-root-'));
+  const isolatedHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-stress-global-home-'));
   const name = `000-codexpro-global-stress-${Date.now()}`;
-  const dir = path.join(os.homedir(), '.codex', 'skills', name);
+  const codexDir = path.join(isolatedHome, '.codex');
+  const dir = path.join(codexDir, 'skills', name);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: Global stress skill.\n---\n\n# Global Only Skill\n`, 'utf8');
   let client;
   try {
-    client = await initClient(isolatedRoot);
+    client = await initClient(isolatedRoot, {
+      HOME: isolatedHome,
+      CODEXPRO_CODEX_DIR: codexDir
+    });
     const opened = await client.request('tools/call', { name: 'open_current_workspace', arguments: { include_tree: false } });
     const inventory = await client.request('tools/call', {
       name: 'codexpro_inventory',
@@ -408,7 +417,7 @@ async function runGlobalSkillStress(root) {
     assert(loadedByName.structuredContent.text.includes('# Global Only Skill'), 'load_skill did not load unique user skill by name');
   } finally {
     client?.close();
-    await fs.rm(dir, { recursive: true, force: true });
+    await fs.rm(isolatedHome, { recursive: true, force: true });
   }
 }
 

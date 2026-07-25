@@ -52,6 +52,7 @@ const MODES = ["agent", "handoff", "pro"] as const;
 const BASH_MODES = ["safe", "off", "full"] as const;
 const BASH_TRANSCRIPTS = ["compact", "full"] as const;
 const CODEX_SESSIONS = ["off", "metadata", "read"] as const;
+const CODEX_COMPAT_MODES = ["off", "safe", "strict"] as const;
 const WRITE_MODES = ["workspace", "handoff", "off"] as const;
 const TOOL_MODES = ["standard", "minimal", "full"] as const;
 
@@ -67,6 +68,7 @@ const AdminProfilePatch = z.object({
   bashTranscript: z.enum(BASH_TRANSCRIPTS).optional(),
   codexSessions: z.enum(CODEX_SESSIONS).optional(),
   codexDir: textField(4096),
+  codexCompat: z.enum(CODEX_COMPAT_MODES).optional(),
   bashSession: textField(64).refine(
     (value) => !value || /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value),
     "bashSession must be 1-64 characters using letters, numbers, dot, underscore, or dash, and must start with a letter or number."
@@ -98,6 +100,7 @@ interface ProfileFormValues {
   bashTranscript: "compact" | "full";
   codexSessions: "off" | "metadata" | "read";
   codexDir: string;
+  codexCompat: "off" | "safe" | "strict";
   bashSession: string;
   requireBashSession: boolean;
   write: "off" | "handoff" | "workspace";
@@ -175,6 +178,7 @@ function profileValues(config: CodexProConfig, profile = readWorkspaceProfile(co
     bashTranscript: oneOf(profile.bashTranscript ?? config.bashTranscript, BASH_TRANSCRIPTS, config.bashTranscript),
     codexSessions: oneOf(profile.codexSessions ?? config.codexSessions, CODEX_SESSIONS, config.codexSessions),
     codexDir: String(profile.codexDir ?? config.codexDir),
+    codexCompat: oneOf(profile.codexCompat ?? config.codexCompatMode, CODEX_COMPAT_MODES, config.codexCompatMode),
     bashSession: String(profile.bashSession ?? config.bashSessionId ?? ""),
     requireBashSession: Boolean(profile.requireBashSession ?? config.requireBashSession),
     write,
@@ -305,6 +309,7 @@ function profileForm(config: CodexProConfig): string {
             <label><span>Write mode</span><select name="write">${selectOptions(WRITE_MODES, values.write)}</select></label>
             <label><span>Tool mode</span><select name="toolMode">${selectOptions(TOOL_MODES, values.toolMode)}</select></label>
             <label><span>Codex sessions</span><select name="codexSessions">${selectOptions(CODEX_SESSIONS, values.codexSessions)}</select></label>
+            <label><span>Codex compatibility</span><select name="codexCompat">${selectOptions(CODEX_COMPAT_MODES, values.codexCompat)}</select></label>
             <label><span>Codex directory</span><input name="codexDir" value="${escapeHtml(values.codexDir)}"></label>
             <label><span>Bash session</span><input name="bashSession" value="${escapeHtml(values.bashSession)}"></label>
           </div>
@@ -368,6 +373,7 @@ function buildProfilePayload(config: CodexProConfig, existing: WorkspaceProfile,
     ...(next.bashTranscript !== "compact" ? { bashTranscript: next.bashTranscript } : {}),
     ...(next.codexSessions !== "off" ? { codexSessions: next.codexSessions } : {}),
     ...(next.codexDir ? { codexDir: next.codexDir } : {}),
+    codexCompat: next.codexCompat,
     ...(next.bashSession ? { bashSession: next.bashSession } : {}),
     ...(next.requireBashSession ? { requireBashSession: true } : {}),
     write,
@@ -394,6 +400,7 @@ function profileResponse(config: CodexProConfig): Record<string, unknown> {
       bashMode: config.bashMode,
       bashTranscript: config.bashTranscript,
       codexSessions: config.codexSessions,
+      codexCompatMode: config.codexCompatMode,
       writeMode: config.writeMode,
       toolMode: config.toolMode,
       toolCards: config.toolCards,
@@ -1263,6 +1270,7 @@ function onboardingPage(config: CodexProConfig): string {
             <div class="row"><span class="label">Transcript</span><span class="pill ${config.bashTranscript === "compact" ? "" : "warn"}">${escapeHtml(config.bashTranscript)}</span></div>
             <div class="row"><span class="label">Bash session</span><span class="pill ${config.requireBashSession ? "warn" : ""}">${escapeHtml(config.bashSessionId ? `${config.bashSessionId}${config.requireBashSession ? " required" : ""}` : "not set")}</span></div>
             <div class="row"><span class="label">Codex sessions</span><span class="pill ${config.codexSessions === "off" ? "" : "warn"}">${escapeHtml(config.codexSessions)}</span></div>
+            <div class="row"><span class="label">Codex compat</span><span class="pill ${config.codexCompatMode === "off" ? "" : "warn"}">${escapeHtml(config.codexCompatMode)}</span></div>
             <div class="row"><span class="label">Widget domain</span><span class="mono">${escapeHtml(config.widgetDomain)}</span></div>
             <div class="row"><span class="label">Auth</span><span class="pill">${escapeHtml(authLabel)}</span></div>
           </div>
@@ -1403,6 +1411,7 @@ function onboardingPage(config: CodexProConfig): string {
           toolMode: data.toolMode,
           toolCards: Boolean(form.elements.toolCards?.checked),
           codexSessions: data.codexSessions,
+          codexCompat: data.codexCompat,
           codexDir: data.codexDir,
           bashSession: data.bashSession,
           requireBashSession: Boolean(form.elements.requireBashSession?.checked),
@@ -1600,6 +1609,7 @@ async function main(): Promise<void> {
       bashSessionId: config.bashSessionId ?? null,
       requireBashSession: config.requireBashSession,
       codexSessions: config.codexSessions,
+      codexCompatMode: config.codexCompatMode,
       writeMode: config.writeMode,
       toolMode: config.toolMode,
       widgetDomain: config.widgetDomain,

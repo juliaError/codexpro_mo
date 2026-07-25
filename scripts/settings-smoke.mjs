@@ -72,8 +72,8 @@ async function waitForJson(filePath, predicate, label) {
   throw new Error(`timed out waiting for ${label}: ${lastError?.message ?? 'predicate not met'}`);
 }
 
-async function withStartedCodexPro(args, env, fn) {
-  const child = spawn(process.execPath, ['scripts/codexpro.mjs', 'start', ...args], {
+async function withCodexProCommand(command, args, env, fn) {
+  const child = spawn(process.execPath, ['scripts/codexpro.mjs', command, ...args], {
     cwd: path.resolve('.'),
     env,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -94,6 +94,10 @@ async function withStartedCodexPro(args, env, fn) {
     if (!closed) child.kill('SIGTERM');
     await closedPromise;
   }
+}
+
+async function withStartedCodexPro(args, env, fn) {
+  return withCodexProCommand('start', args, env, fn);
 }
 
 function findPythonForPty() {
@@ -187,9 +191,13 @@ const reuseRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-reu
 const policyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-policy-'));
 const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-runtime-'));
 const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-stale-'));
+const nativeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-native-'));
+const defaultStrictRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-default-strict-'));
+const explicitOffRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-explicit-off-'));
 const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-ngrok-'));
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-home-'));
 const env = { ...process.env, CODEXPRO_HOME: home };
+delete env.CODEXPRO_CODEX_COMPAT;
 function withoutProxyEnv(input) {
   const next = { ...input };
   for (const key of ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy', 'HTTP_PROXY', 'http_proxy']) delete next[key];
@@ -204,6 +212,78 @@ const emptyEquals = run([`settings`, `show`, `--root=${root}`], env);
 if (!emptyEquals.includes('No saved settings')) {
   throw new Error(`expected --root= settings output, got:\n${emptyEquals}`);
 }
+
+const defaultStrictPort = await getFreePort();
+const defaultStrictRuntimePath = await runtimeStatusPath(defaultStrictRoot, home);
+await withStartedCodexPro([
+  '--root',
+  defaultStrictRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(defaultStrictPort),
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    defaultStrictRuntimePath,
+    (data) => data.codexCompat === 'strict' && data.pid === child.pid,
+    'default strict runtime status'
+  );
+  if (runtime.codexCompat !== 'strict') {
+    throw new Error(`plain codexpro start was not strict by default: ${JSON.stringify(runtime)}`);
+  }
+});
+
+const explicitOffPort = await getFreePort();
+const explicitOffRuntimePath = await runtimeStatusPath(explicitOffRoot, home);
+await withStartedCodexPro([
+  '--root',
+  explicitOffRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(explicitOffPort),
+  '--codex-compat',
+  'off',
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    explicitOffRuntimePath,
+    (data) => data.codexCompat === 'off' && data.pid === child.pid,
+    'explicit off runtime status'
+  );
+  if (runtime.codexCompat !== 'off') {
+    throw new Error(`explicit compatibility opt-out was ignored: ${JSON.stringify(runtime)}`);
+  }
+});
+
+const nativeHelp = run(['native', '--help'], env);
+if (!nativeHelp.includes('codexpro native') || !nativeHelp.includes('strict Codex compatibility')) {
+  throw new Error(`native shortcut missing from help output:\n${nativeHelp}`);
+}
+
+const nativePort = await getFreePort();
+const nativeRuntimePath = await runtimeStatusPath(nativeRoot, home);
+await withCodexProCommand('native', [
+  '--root',
+  nativeRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(nativePort),
+  '--codex-compat',
+  'off',
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    nativeRuntimePath,
+    (data) => data.codexCompat === 'strict' && data.pid === child.pid,
+    'native shortcut runtime status'
+  );
+  if (runtime.codexCompat !== 'strict') {
+    throw new Error(`native shortcut did not force strict compatibility: ${JSON.stringify(runtime)}`);
+  }
+});
 
 const saved = run([
   'settings',
@@ -220,6 +300,8 @@ const saved = run([
   'agent',
   '--tool-mode',
   'full',
+  '--codex-compat',
+  'strict',
   '--bash-transcript',
   'full',
   '--widget-domain',
@@ -234,7 +316,7 @@ if (!saved.includes('Saved workspace settings')) {
 }
 
 const shown = run(['settings', 'show', '--root', root], env);
-for (const expected of ['Tunnel', 'ngrok', 'codexpro-test.ngrok-free.app', '19087', 'Tool cards', 'on', 'Bash transcript', 'full', '<saved>']) {
+for (const expected of ['Tunnel', 'ngrok', 'codexpro-test.ngrok-free.app', '19087', 'Tool cards', 'on', 'Bash transcript', 'full', 'Codex compat', 'strict', '<saved>']) {
   if (!shown.includes(expected)) {
     throw new Error(`settings show missing ${expected}\n${shown}`);
   }
@@ -243,9 +325,20 @@ if (shown.includes('codexpro-settings-token')) {
   throw new Error(`settings show leaked token\n${shown}`);
 }
 const profile = await readProfile(root, home);
-if (profile.toolMode !== 'full' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexpro.test') {
+if (profile.toolMode !== 'full' || profile.codexCompat !== 'strict' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexpro.test') {
   throw new Error(`settings profile did not persist tool/widget options: ${JSON.stringify(profile)}`);
 }
+
+runFail([
+  'settings',
+  'set',
+  '--root',
+  root,
+  '--tunnel',
+  'none',
+  '--codex-compat',
+  'typo'
+], env, /codex-compat must be off, safe, or strict/i);
 
 runFail([
   'settings',

@@ -28,6 +28,7 @@ Usage:
   npm install -g codexpro
   codexpro setup
   codexpro start
+  codexpro native
   codexpro start --root /path/to/repo
   codexpro settings
   codexpro doctor
@@ -74,6 +75,11 @@ Options:
                              Opt in to read local ~/.codex session history.
                              metadata lists ids/titles/cwd; read allows bounded transcript reads.
   --codex-dir <dir>          Codex config/session directory. Default: ~/.codex.
+  --codex-compat <off|safe|strict>
+                             Dynamic Codex instructions and skills mode.
+                             Default in this fork: strict. Use off to opt out.
+                             strict requires a fresh codex_bootstrap before writes or bash.
+  native                    Shortcut for start with strict Codex compatibility.
   --write <off|handoff|workspace>
                              Write mode. Default: workspace in agent mode, handoff otherwise.
                              handoff = no generic write/edit/apply_patch tools; handoff tools write bounded .ai-bridge files.
@@ -165,6 +171,9 @@ Loop handoff options:
 
 Default agent mode:
   codexpro start --root /path/to/repo
+
+Strict Codex-compatible mode:
+  codexpro native
 
 Guided setup:
   codexpro setup
@@ -696,6 +705,7 @@ function saveRuntimeConnection(root, details, options = {}) {
     bash: options.bash ?? '',
     bashTranscript: options.bashTranscript ?? '',
     codexSessions: options.codexSessions ?? '',
+    codexCompat: options.codexCompat ?? '',
     bashSession: options.bashSession ?? '',
     requireBashSession: Boolean(options.requireBashSession),
     write: options.write ?? '',
@@ -807,6 +817,12 @@ function codexSessionsOption(args, profile = {}) {
   const value = optionValue(args, profile, 'codexSessions', ['CODEXPRO_CODEX_SESSIONS'], 'off');
   if (value === 'off' || value === 'metadata' || value === 'read') return value;
   throw new Error('--codex-sessions must be off, metadata, or read.');
+}
+
+function codexCompatOption(args, profile = {}) {
+  const value = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'strict');
+  if (value === 'off' || value === 'safe' || value === 'strict') return value;
+  throw new Error('--codex-compat must be off, safe, or strict.');
 }
 
 function stableToken(existing = '') {
@@ -2759,6 +2775,7 @@ function printConnectorBlock(endpoint, token, options = {}) {
   console.log(`  Mode       ${modeTitle}  tools=${options.toolMode ?? 'standard'}  write=${options.write ?? 'workspace'}  bash=${options.bash ?? 'safe'}`);
   console.log(`  Transcript bash=${options.bashTranscript ?? 'compact'}`);
   if (options.codexSessions && options.codexSessions !== 'off') console.log(`  Codex      sessions=${options.codexSessions}`);
+  if (options.codexCompat && options.codexCompat !== 'off') console.log(`  Compat     codex=${options.codexCompat}`);
   if (options.bashSession) console.log(`  Bash       session=${options.bashSession}${options.requireBashSession ? ' required' : ''}`);
   console.log(`  Connector  ${publicHttps ? 'public HTTPS' : 'local HTTP'}`);
   if (copied.ok) {
@@ -2900,6 +2917,7 @@ async function runDoctor(argv) {
     writeError = error instanceof Error ? error.message : String(error);
   }
   const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], 'standard');
+  const codexCompat = optionValue(args, profile, 'codexCompat', ['CODEXPRO_CODEX_COMPAT'], 'strict');
   const stableHostname = args.hostname
     ?? args.url
     ?? process.env.CODEXPRO_PUBLIC_HOSTNAME
@@ -2928,6 +2946,7 @@ async function runDoctor(argv) {
   printBox('CodexPro doctor', [
     labelValue('Workspace', root),
     labelValue('Mode', `${mode}  tools=${toolMode}  write=${write}  bash=${bash}`),
+    labelValue('Codex compat', codexCompat),
     labelValue('Tunnel', tunnel),
     ...(stableHostname ? [labelValue('Hostname', stableHostname)] : []),
     ...(profile.profilePath ? [labelValue('Profile', profile.profilePath)] : [])
@@ -2941,6 +2960,7 @@ async function runDoctor(argv) {
   record(['off', 'safe', 'full'].includes(bash) ? 'ok' : 'fail', 'Bash mode', ['off', 'safe', 'full'].includes(bash) ? bash : '--bash must be off, safe, or full');
   record(!writeError && ['off', 'handoff', 'workspace'].includes(write) ? 'ok' : 'fail', 'Write mode', writeError || write);
   record(['minimal', 'standard', 'full'].includes(toolMode) ? 'ok' : 'fail', 'Tool mode', ['minimal', 'standard', 'full'].includes(toolMode) ? toolMode : '--tool-mode must be minimal, standard, or full');
+  record(['off', 'safe', 'strict'].includes(codexCompat) ? 'ok' : 'fail', 'Codex compat', ['off', 'safe', 'strict'].includes(codexCompat) ? codexCompat : '--codex-compat must be off, safe, or strict');
   record(clipboard ? 'ok' : 'warn', 'Clipboard', clipboard || 'not found; URL will be printed for manual copy');
   record(browser ? 'ok' : 'warn', 'Browser open', browser || 'not found; open ChatGPT manually');
 
@@ -3095,6 +3115,7 @@ function profileFromPreference(root, args, profile, preference) {
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
   const codexDir = optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], '');
+  const codexCompat = codexCompatOption(args, profile);
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = optionalWriteOption(args, profile, mode);
   const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], '');
@@ -3115,6 +3136,7 @@ function profileFromPreference(root, args, profile, preference) {
     ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
     ...(codexSessions !== 'off' ? { codexSessions } : {}),
     ...(codexDir ? { codexDir } : {}),
+    codexCompat,
     ...(bashSession ? { bashSession } : {}),
     ...(requireBashSession ? { requireBashSession: true } : {}),
     ...(write ? { write } : {}),
@@ -3239,6 +3261,7 @@ async function runSetupWizard(argv) {
     const bashTranscript = bashTranscriptOption(defaults, profile);
     const codexSessions = codexSessionsOption(defaults, profile);
     const codexDir = optionValue(defaults, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], '');
+    const codexCompat = codexCompatOption(defaults, profile);
     const write = optionalWriteOption(defaults, profile, mode);
     const toolMode = optionalChoice('tool-mode', optionValue(defaults, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], ''), ['minimal', 'standard', 'full']);
     const widgetDomain = optionValue(defaults, profile, 'widgetDomain', ['CODEXPRO_WIDGET_DOMAIN'], '');
@@ -3247,6 +3270,7 @@ async function runSetupWizard(argv) {
     if (bashTranscript !== 'compact') args.push('--bash-transcript', bashTranscript);
     if (codexSessions !== 'off') args.push('--codex-sessions', codexSessions);
     if (codexDir) args.push('--codex-dir', codexDir);
+    args.push('--codex-compat', codexCompat);
     const { bashSession, requireBashSession } = bashSessionOptions(defaults, profile);
     if (bashSession) args.push('--bash-session', bashSession);
     if (requireBashSession) args.push('--require-bash-session');
@@ -3341,6 +3365,7 @@ async function runSetupWizard(argv) {
         ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
         ...(codexSessions !== 'off' ? { codexSessions } : {}),
         ...(codexDir ? { codexDir } : {}),
+        codexCompat,
         ...(bashSession ? { bashSession } : {}),
         ...(requireBashSession ? { requireBashSession: true } : {}),
         ...(write ? { write } : {}),
@@ -3395,6 +3420,7 @@ function printProfile(root, profile) {
     ...(safe.toolCards !== undefined ? [labelValue('Tool cards', safe.toolCards ? 'on' : 'off')] : []),
     labelValue('Bash transcript', safe.bashTranscript ?? 'compact'),
     labelValue('Codex sessions', safe.codexSessions ?? 'off'),
+    labelValue('Codex compat', safe.codexCompat ?? 'strict'),
     ...(safe.codexDir ? [labelValue('Codex dir', safe.codexDir)] : []),
     ...(safe.bashSession ? [labelValue('Bash session', `${safe.bashSession}${safe.requireBashSession ? ' required' : ''}`)] : []),
     ...(safe.widgetDomain ? [labelValue('Widget origin', safe.widgetDomain)] : []),
@@ -3439,6 +3465,7 @@ function saveSettingsFromArgs(root, args, profile) {
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
   const codexDir = optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], profile.codexDir ?? '');
+  const codexCompat = codexCompatOption(args, profile);
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = writeOption(args, profile, mode);
   const bash = optionalChoice('bash', optionValue(args, profile, 'bash', ['CODEXPRO_BASH_MODE'], profile.bash ?? ''), ['off', 'safe', 'full']);
@@ -3469,6 +3496,7 @@ function saveSettingsFromArgs(root, args, profile) {
     ...(bashTranscript !== 'compact' ? { bashTranscript } : {}),
     ...(codexSessions !== 'off' ? { codexSessions } : {}),
     ...(codexDir ? { codexDir } : {}),
+    codexCompat,
     ...(bashSession ? { bashSession } : {}),
     ...(requireBashSession ? { requireBashSession: true } : {}),
     ...(mode !== 'agent' || args.write !== undefined || profile.write ? { write } : {}),
@@ -3690,11 +3718,17 @@ function runControlPanel(details, cleanup = cleanupChildren) {
 async function main() {
   let argv = process.argv.slice(2);
   let connectionTest = false;
+  let nativeCompatShortcut = false;
   if (argv[0] === '--version' || argv[0] === '-v' || argv[0] === 'version') {
     console.log(packageVersion());
     return;
   }
   let subcommand = argv[0];
+  if (subcommand === 'native') {
+    nativeCompatShortcut = true;
+    argv.shift();
+    subcommand = argv[0];
+  }
   if (subcommand === 'inspect' || subcommand === 'review') {
     await runAnalysisCli(subcommand, argv.slice(1));
     return;
@@ -3784,6 +3818,7 @@ async function main() {
     usage();
     return;
   }
+  if (nativeCompatShortcut) args.codexCompat = 'strict';
 
   const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
@@ -3831,6 +3866,7 @@ async function main() {
   const bashTranscript = bashTranscriptOption(args, profile);
   const codexSessions = codexSessionsOption(args, profile);
   const codexDir = resolveCodexDir(root, optionValue(args, profile, 'codexDir', ['CODEXPRO_CODEX_DIR'], ''));
+  const codexCompat = codexCompatOption(args, profile);
   const { bashSession, requireBashSession } = bashSessionOptions(args, profile);
   const write = writeOption(args, profile, mode);
   const toolMode = optionValue(args, profile, 'toolMode', ['CODEXPRO_TOOL_MODE'], 'standard');
@@ -3854,6 +3890,7 @@ async function main() {
     CODEXPRO_BASH_SESSION_ID: bashSession,
     CODEXPRO_REQUIRE_BASH_SESSION: requireBashSession ? '1' : '0',
     CODEXPRO_CODEX_SESSIONS: codexSessions,
+    CODEXPRO_CODEX_COMPAT: codexCompat,
     CODEXPRO_WRITE_MODE: write,
     CODEXPRO_TOOL_MODE: toolMode,
     CODEXPRO_WIDGET_DOMAIN: widgetDomain,
@@ -3885,6 +3922,7 @@ async function main() {
     labelValue('Mode', `${mode}  tools=${toolMode}  write=${write}  bash=${bash}`),
     labelValue('Bash transcript', bashTranscript),
     labelValue('Codex sessions', codexSessions),
+    labelValue('Codex compat', codexCompat),
     ...(bashSession ? [labelValue('Bash session', `${bashSession}${requireBashSession ? ' required' : ''}`)] : []),
     labelValue('Local URL', `http://${host}:${port}/mcp`),
     labelValue(
@@ -3926,6 +3964,7 @@ async function main() {
     bash,
     bashTranscript,
     codexSessions,
+    codexCompat,
     bashSession,
     requireBashSession,
     toolCards,
@@ -3948,6 +3987,7 @@ async function main() {
       bash,
       bashTranscript,
       codexSessions,
+      codexCompat,
       bashSession,
       requireBashSession,
       connectionTest
@@ -3992,6 +4032,7 @@ async function main() {
       bash,
       bashTranscript,
       codexSessions,
+      codexCompat,
       bashSession,
       requireBashSession,
       connectionTest
@@ -4037,6 +4078,7 @@ async function main() {
       bash,
       bashTranscript,
       codexSessions,
+      codexCompat,
       bashSession,
       requireBashSession,
       connectionTest
@@ -4062,6 +4104,7 @@ async function main() {
       bash,
       bashTranscript,
       codexSessions,
+      codexCompat,
       bashSession,
       requireBashSession,
       connectionTest
@@ -4105,6 +4148,7 @@ async function main() {
       bash,
       bashTranscript,
       codexSessions,
+      codexCompat,
       bashSession,
       requireBashSession,
       connectionTest
@@ -4174,6 +4218,7 @@ async function main() {
     bash,
     bashTranscript,
     codexSessions,
+    codexCompat,
     bashSession,
     requireBashSession,
     connectionTest

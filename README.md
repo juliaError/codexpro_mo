@@ -124,6 +124,37 @@ Tool cards are opt in:
 CODEXPRO_TOOL_CARDS=1 codexpro start
 ```
 
+## Dynamic Codex Instructions And Skills
+
+This fork enables strict Codex compatibility by default:
+
+```bash
+codexpro start
+```
+
+No per-workspace compatibility setting is required. Existing profiles without a
+`codexCompat` field also inherit `strict`. `codexpro native` remains an explicit
+alias, while `codexpro start --codex-compat off` opts out for one launch.
+
+Call `codex_bootstrap` before working. It dynamically reads the current global
+Codex instruction file, the effective project `AGENTS.md` chain from the
+workspace root to the requested target, supported project/user/plugin/admin
+skills, and the small subset of Codex configuration that controls project
+instruction discovery.
+
+No files are copied. Changes made by a later Codex or skill upgrade are read on
+the next bootstrap. In `strict` mode, CodexPro recomputes the context hash before
+writes and bash, and fails closed when the bootstrap is missing or stale.
+
+- `off` explicitly preserves the existing CodexPro tool surface and behavior.
+- `safe` exposes `codex_bootstrap` and `load_skill_resource` without an execution-order gate.
+- `strict` (fork default) requires a matching fresh bootstrap before writes, patches, handoff/context exports, and bash.
+
+The layer does not import Codex credentials, sessions, memories, logs, model
+state, MCP runtime, approvals, or sandbox policy, and it does not claim runtime
+identity with native Codex. See [Codex compatibility mode](docs/CODEX_COMPAT.md)
+for the exact precedence and security contract.
+
 The v10 cards cover selected workspace, analysis, change, Git, handoff, and
 terminal results. Reads and searches stay in normal chat output. After updating
 the connector, refresh its ChatGPT plugin connection once so it loads the new
