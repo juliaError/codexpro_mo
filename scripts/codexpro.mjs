@@ -28,6 +28,7 @@ Usage:
   npm install -g codexpro
   codexpro setup
   codexpro start
+  codexpro native
   codexpro start --root /path/to/repo
   codexpro settings
   codexpro doctor
@@ -77,6 +78,7 @@ Options:
   --codex-compat <off|safe|strict>
                              Opt in to dynamic Codex instructions and skills.
                              strict requires a fresh codex_bootstrap before writes or bash.
+  native                    Shortcut for start with strict Codex compatibility.
   --write <off|handoff|workspace>
                              Write mode. Default: workspace in agent mode, handoff otherwise.
                              handoff = no generic write/edit/apply_patch tools; handoff tools write bounded .ai-bridge files.
@@ -168,6 +170,9 @@ Loop handoff options:
 
 Default agent mode:
   codexpro start --root /path/to/repo
+
+Strict Codex-compatible mode:
+  codexpro native
 
 Guided setup:
   codexpro setup
@@ -3712,11 +3717,17 @@ function runControlPanel(details, cleanup = cleanupChildren) {
 async function main() {
   let argv = process.argv.slice(2);
   let connectionTest = false;
+  let nativeCompatShortcut = false;
   if (argv[0] === '--version' || argv[0] === '-v' || argv[0] === 'version') {
     console.log(packageVersion());
     return;
   }
   let subcommand = argv[0];
+  if (subcommand === 'native') {
+    nativeCompatShortcut = true;
+    argv.shift();
+    subcommand = argv[0];
+  }
   if (subcommand === 'inspect' || subcommand === 'review') {
     await runAnalysisCli(subcommand, argv.slice(1));
     return;
@@ -3806,6 +3817,7 @@ async function main() {
     usage();
     return;
   }
+  if (nativeCompatShortcut) args.codexCompat = 'strict';
 
   const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);

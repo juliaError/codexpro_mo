@@ -129,8 +129,13 @@ CODEXPRO_TOOL_CARDS=1 codexpro start
 This fork has an opt-in Codex compatibility layer:
 
 ```bash
-codexpro start --codex-compat strict
+codexpro native
 ```
+
+`codexpro native` is the short form of
+`codexpro start --codex-compat strict`. Alternatively, save strict mode once
+with `codexpro settings set --codex-compat strict`; future launches from that
+workspace then only need `codexpro start`.
 
 Call `codex_bootstrap` before working. It dynamically reads the current global
 Codex instruction file, the effective project `AGENTS.md` chain from the

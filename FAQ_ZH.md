@@ -122,8 +122,12 @@ ChatGPT 能看到工具显式暴露的工作区内容：
 建议使用：
 
 ```bash
-codexpro start --codex-compat strict
+codexpro native
 ```
+
+它等价于 `codexpro start --codex-compat strict`。如果希望继续使用原来的
+启动命令，可以执行一次 `codexpro settings set --codex-compat strict`，
+以后在该工作区只需运行 `codexpro start`。
 
 strict 模式在任何受支持的写入或 bash 操作前复核上下文；如果规则或 skill 在 bootstrap 后变化，操作会失败并要求重新 bootstrap。
 

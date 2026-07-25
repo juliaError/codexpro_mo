@@ -115,8 +115,17 @@ ChatGPT Web 可以操作：
 这个 fork 可以选择性启用 Codex 兼容层：
 
 ```bash
-codexpro start --codex-compat strict
+codexpro native
 ```
+
+`codexpro native` 是 `codexpro start --codex-compat strict` 的快捷写法。
+也可以只设置一次：
+
+```bash
+codexpro settings set --codex-compat strict
+```
+
+此后在该工作区只需运行 `codexpro start`。
 
 启动后先调用 `codex_bootstrap`。它会在调用时动态读取：
 

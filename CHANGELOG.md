@@ -2,6 +2,9 @@
 
 ## Unreleased — Codex native compatibility fork
 
+- Added `codexpro native` as a short, explicit launcher for strict Codex
+  compatibility; saved profiles can still make plain `codexpro start` use
+  strict mode for a workspace.
 - Added opt-in `--codex-compat off|safe|strict` configuration across the MCP
   server, CLI, saved profiles, runtime status, doctor, and local admin page.
 - Added dynamic `codex_bootstrap` instruction precedence, skill manifests,

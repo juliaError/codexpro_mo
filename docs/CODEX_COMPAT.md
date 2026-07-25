@@ -13,13 +13,21 @@ and does not make the ChatGPT/MCP runtime identical to native Codex.
   handoff/context writes, self-test mutation probes, and `bash` until a fresh
   bootstrap exists for the affected target context.
 
-Enable the layer with either:
+The shortest strict-mode launcher is:
 
 ```bash
-codexpro start --codex-compat strict
+codexpro native
 ```
 
-or:
+It is equivalent to `codexpro start --codex-compat strict`. To make the normal
+start command use strict mode for this workspace, save it once:
+
+```bash
+codexpro settings set --codex-compat strict
+codexpro start
+```
+
+The environment-variable form is:
 
 ```bash
 export CODEXPRO_CODEX_COMPAT=strict

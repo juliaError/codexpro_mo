@@ -324,6 +324,16 @@ Use it with repos you trust. Keep token auth enabled for public tunnels. Keep sa
 With `--codex-compat safe|strict`, each `codex_bootstrap` reads the current
 supported files directly. It does not copy the Codex home into CodexPro.
 
+For strict mode, use the short launcher:
+
+```bash
+codexpro native
+```
+
+It is equivalent to `codexpro start --codex-compat strict`. You can instead
+save strict mode once with `codexpro settings set --codex-compat strict`, then
+use plain `codexpro start` in that workspace.
+
 The effective context uses the global override-or-default instruction, followed
 by one highest-priority project instruction per directory from the workspace
 root to the requested target. Later, more specific layers win. The response

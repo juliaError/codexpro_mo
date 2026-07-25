@@ -72,8 +72,8 @@ async function waitForJson(filePath, predicate, label) {
   throw new Error(`timed out waiting for ${label}: ${lastError?.message ?? 'predicate not met'}`);
 }
 
-async function withStartedCodexPro(args, env, fn) {
-  const child = spawn(process.execPath, ['scripts/codexpro.mjs', 'start', ...args], {
+async function withCodexProCommand(command, args, env, fn) {
+  const child = spawn(process.execPath, ['scripts/codexpro.mjs', command, ...args], {
     cwd: path.resolve('.'),
     env,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -94,6 +94,10 @@ async function withStartedCodexPro(args, env, fn) {
     if (!closed) child.kill('SIGTERM');
     await closedPromise;
   }
+}
+
+async function withStartedCodexPro(args, env, fn) {
+  return withCodexProCommand('start', args, env, fn);
 }
 
 function findPythonForPty() {
@@ -187,6 +191,7 @@ const reuseRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-reu
 const policyRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-policy-'));
 const runtimeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-runtime-'));
 const staleRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-stale-'));
+const nativeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-native-'));
 const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-ngrok-'));
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-home-'));
 const env = { ...process.env, CODEXPRO_HOME: home };
@@ -204,6 +209,34 @@ const emptyEquals = run([`settings`, `show`, `--root=${root}`], env);
 if (!emptyEquals.includes('No saved settings')) {
   throw new Error(`expected --root= settings output, got:\n${emptyEquals}`);
 }
+
+const nativeHelp = run(['native', '--help'], env);
+if (!nativeHelp.includes('codexpro native') || !nativeHelp.includes('strict Codex compatibility')) {
+  throw new Error(`native shortcut missing from help output:\n${nativeHelp}`);
+}
+
+const nativePort = await getFreePort();
+const nativeRuntimePath = await runtimeStatusPath(nativeRoot, home);
+await withCodexProCommand('native', [
+  '--root',
+  nativeRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(nativePort),
+  '--codex-compat',
+  'off',
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    nativeRuntimePath,
+    (data) => data.codexCompat === 'strict' && data.pid === child.pid,
+    'native shortcut runtime status'
+  );
+  if (runtime.codexCompat !== 'strict') {
+    throw new Error(`native shortcut did not force strict compatibility: ${JSON.stringify(runtime)}`);
+  }
+});
 
 const saved = run([
   'settings',

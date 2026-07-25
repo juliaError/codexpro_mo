@@ -135,3 +135,17 @@ exposing credentials, sessions, logs, or other runtime state.
 GitHub authentication was confirmed outside the filesystem sandbox for account
 `juliaError`. The branch and draft PR were published on 2026-07-25. No PR was
 opened against `rebel0789/codexpro`.
+
+### v4: Simplified strict-mode startup
+
+- [x] Preserve `off` as the default for backward compatibility.
+- [x] Add `codexpro native` as an explicit shortcut that always selects strict
+  Codex compatibility, even when a saved profile or command-line option says
+  otherwise.
+- [x] Document the existing one-time profile alternative:
+  `codexpro settings set --codex-compat strict`, followed by plain
+  `codexpro start`.
+- [x] Run focused help-output and build checks, then the full `npm run smoke`
+  suite, including the settings/runtime shortcut test.
+- [x] Commit and update draft PR
+  [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1).
