@@ -214,4 +214,5 @@ recommended default-strict command.
   `dist/config.js` SHA-256.
 - [x] Update the English and Chinese README files to use the verified
   one-command GitHub installation form; `git diff --check` passes.
-- [ ] Publish the documentation correction to the fork through a focused PR.
+- [x] Publish the documentation correction to the fork through draft PR
+  [`juliaError/codexpro_mo#3`](https://github.com/juliaError/codexpro_mo/pull/3).
