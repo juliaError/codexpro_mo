@@ -170,3 +170,21 @@ recommended default-strict command.
   compatibility module, tests, and documentation.
 - [x] Commit and update draft PR
   [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1).
+
+### v6: GitHub-install-ready artifact
+
+- [x] Merge PR
+  [`juliaError/codexpro_mo#1`](https://github.com/juliaError/codexpro_mo/pull/1)
+  into the fork's `main` as
+  `00c53a993726a9c0810d2e8d6f3f7fcfc4641f50`.
+- [x] Verify the merged `main` tree matches the fully tested feature tree.
+- [x] Run an isolated install from `github:juliaError/codexpro_mo`.
+- [x] Record the installation failure accurately: npm installed the source but
+  omitted ignored `dist/` output because Git-dependency lifecycle builds were
+  skipped under the local npm security policy.
+- [x] Stop relying on lifecycle execution by tracking the compiled `dist/`
+  output in this fork.
+- [x] Verify build reproducibility, package contents, and an isolated GitHub
+  branch install with `--ignore-scripts`, executable `codexpro`, required
+  `dist` files, and doctor reporting default strict mode.
+- [x] Commit, publish, and merge the install-readiness follow-up into `main`.

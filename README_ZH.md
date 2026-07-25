@@ -41,6 +41,13 @@ CodexPro 需要 Node.js 20+，以及能使用 Apps / Developer Mode 的 ChatGPT 
 npm install -g codexpro
 ```
 
+直接从 GitHub 安装这个默认 strict 的 fork：
+
+```bash
+npm install -g github:juliaError/codexpro_mo
+codexpro start
+```
+
 GitHub `main` 文档可能早于 npm 发布；用 `npm install -g codexpro` 前请看 npm badge/version，未发布的 `main` 行为请用下面的 source checkout 方式。
 
 进入你想让 ChatGPT 工作的仓库，然后运行 setup：
