@@ -44,9 +44,13 @@ npm install -g codexpro
 直接从 GitHub 安装这个默认 strict 的 fork：
 
 ```bash
-npm install -g github:juliaError/codexpro_mo
+npm install -g github:juliaError/codexpro_mo --ignore-scripts --install-links=true
 codexpro start
 ```
+
+`--install-links=true` 会让 npm 把 Git 依赖安装为真正的全局包，而不是指向临时 clone
+目录的软链接。这个 fork 已跟踪验证过的 `dist/`，因此使用 `--ignore-scripts` 不会漏掉
+CLI 构建产物。
 
 GitHub `main` 文档可能早于 npm 发布；用 `npm install -g codexpro` 前请看 npm badge/version，未发布的 `main` 行为请用下面的 source checkout 方式。
 

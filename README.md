@@ -32,9 +32,13 @@ npm install -g codexpro
 Install this default-strict fork directly from GitHub:
 
 ```bash
-npm install -g github:juliaError/codexpro_mo
+npm install -g github:juliaError/codexpro_mo --ignore-scripts --install-links=true
 codexpro start
 ```
+
+`--install-links=true` makes npm install the Git dependency as a real global
+package instead of leaving a link to a temporary clone. This fork tracks its
+verified `dist/` output, so `--ignore-scripts` does not skip the CLI build.
 
 Run setup inside the repo you want ChatGPT to work on:
 

@@ -20,7 +20,9 @@ per-workspace enablement.
 
 ## Immutable boundaries
 
-- Do not modify the globally installed CodexPro package.
+- Do not modify the globally installed CodexPro package unless separately
+  authorized. The user explicitly authorized replacing it with this fork on
+  2026-07-25 for workflow v7.
 - Do not modify files under the user's real `~/.codex` or `~/.codexpro`.
 - Do not expose or copy `auth.json`, sessions, archived sessions, logs,
   credentials, private keys, or unrelated Codex runtime files.
@@ -188,3 +190,28 @@ recommended default-strict command.
   branch install with `--ignore-scripts`, executable `codexpro`, required
   `dist` files, and doctor reporting default strict mode.
 - [x] Commit, publish, and merge the install-readiness follow-up into `main`.
+
+### v7: Authorized global installation
+
+- [x] Receive explicit user authorization to replace the globally installed
+  CodexPro with `github:juliaError/codexpro_mo`.
+- [x] Record the existing executable, package identity, active process state,
+  and hashes of existing `~/.codexpro` files without printing their contents.
+- [x] Attempt the direct GitHub global install with `--ignore-scripts`. Although
+  npm returned success, artifact verification found an empty/incomplete global
+  package, no CLI entry point, and no `dist/`; do not treat this attempt as a
+  successful installation.
+- [x] Recover by installing a verified package artifact built from fork commit
+  `53665676ee118376743097ba1ba5580609ae8400`, without running dependency
+  lifecycle scripts globally. The package SHA-256 was
+  `36d30f8b593d86e07787b17d10d6e92b6a0af33949f871bf285792a440f63265`.
+- [x] Verify executable resolution, package contents, CLI version, default
+  strict compatibility, and unchanged `~/.codexpro` file hashes.
+- [x] Validate a reliable one-command GitHub reinstall form for this machine:
+  `npm install -g github:juliaError/codexpro_mo --ignore-scripts
+  --install-links=true`. An isolated-prefix install produced a real package
+  directory, a working CLI, the compatibility module, and the exact expected
+  `dist/config.js` SHA-256.
+- [x] Update the English and Chinese README files to use the verified
+  one-command GitHub installation form; `git diff --check` passes.
+- [ ] Publish the documentation correction to the fork through a focused PR.
