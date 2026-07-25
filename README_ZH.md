@@ -110,6 +110,31 @@ ChatGPT Web 可以操作：
 
 默认工具数量较少是故意的：ChatGPT 面对少量高信号工具时更稳定。workspace open 默认不做 skill discovery；需要 repo-local skills 时传 `include_skills=true`，需要 user/plugin skills 时再加 `include_global_skills=true`。然后用 `load_skill` 按名称、source 和显示出的 path 加载需要的 `SKILL.md`；如果仍有重名匹配，CodexPro 会报歧义错误，不会随便选一个，也不会把几十个 skill 变成单独 action。
 
+### 动态读取 Codex 规则和技能
+
+这个 fork 可以选择性启用 Codex 兼容层：
+
+```bash
+codexpro start --codex-compat strict
+```
+
+启动后先调用 `codex_bootstrap`。它会在调用时动态读取：
+
+- `~/.codex/AGENTS.override.md`，否则读取 `~/.codex/AGENTS.md`；
+- 从项目 root 到目标目录的各级 `AGENTS.override.md` / `AGENTS.md`，每级只选优先级最高的一个；
+- 项目、用户、plugin cache 和 `/etc/codex/skills` 下受支持的 `SKILL.md`；
+- Codex `config.toml` 中与项目规则加载直接相关的少量兼容项。
+
+这里的“合并”是按优先级把当前文件内容组合成有效上下文，不是复制文件。你以后修改 `AGENTS.md`、安装/升级 skill，下一次 bootstrap 会直接看到新内容；strict 模式还会在写入或 bash 前重新计算哈希，发现规则或技能变化就拒绝执行并要求重新 bootstrap。
+
+三种模式：
+
+- `off`：默认值，完全保留原来的 CodexPro 工具和执行顺序。
+- `safe`：提供 `codex_bootstrap` 和 `load_skill_resource`，但不强制执行顺序。
+- `strict`：写入、编辑、patch、handoff/context 导出和 bash 前必须有匹配的最新 bootstrap。
+
+兼容层不会导入 `auth.json`、Codex sessions、memory、日志、模型状态、MCP 运行时、审批或 sandbox 配置，也不声称 ChatGPT MCP 与原生 Codex agent 完全一致。完整边界见 [Codex compatibility mode](docs/CODEX_COMPAT.md)。
+
 CodexPro 默认给 ChatGPT 暴露纯 MCP 工具描述，不附带 widget/card metadata。需要紧凑 v10 卡片时用 `CODEXPRO_TOOL_CARDS=1` 启动；workspace、分析、改动、Git、handoff 和 bash 验证会使用结构化卡片，read/search 保持为普通聊天输出。终端输出和 raw diff 会折叠或截断，避免在聊天里刷出大段原始数据。更新 connector 后，刷新一次 ChatGPT plugin connection 以加载新的 widget resource。`CODEXPRO_WIDGET_DOMAIN` 用于设置 ChatGPT widget iframe 的专用 HTTPS origin，正式提交 app 前应换成你控制的独立域名。
 
 ## 其他启动方式

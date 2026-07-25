@@ -6,6 +6,7 @@ import { DEFAULT_ANALYSIS_LIMITS, type AnalysisLimits } from "./analysis/types.j
 export type BashMode = "off" | "safe" | "full";
 export type BashTranscriptMode = "compact" | "full";
 export type CodexSessionsMode = "off" | "metadata" | "read";
+export type CodexCompatMode = "off" | "safe" | "strict";
 export type WriteMode = "off" | "handoff" | "workspace";
 export type ToolMode = "minimal" | "standard" | "full";
 
@@ -23,6 +24,7 @@ export interface CodexProConfig {
   requireBashSession: boolean;
   codexSessions: CodexSessionsMode;
   codexDir: string;
+  codexCompatMode: CodexCompatMode;
   writeMode: WriteMode;
   toolMode: ToolMode;
   inheritEnv: boolean;
@@ -167,6 +169,12 @@ function codexSessionsFrom(value: string | undefined): CodexSessionsMode {
   return "off";
 }
 
+function codexCompatModeFrom(value: string | undefined): CodexCompatMode {
+  if (value === undefined || value === "" || value === "off") return "off";
+  if (value === "safe" || value === "strict") return value;
+  throw new Error("CODEXPRO_CODEX_COMPAT / --codex-compat must be off, safe, or strict.");
+}
+
 function bashSessionIdFrom(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
@@ -266,6 +274,7 @@ export function loadConfig(argv = process.argv.slice(2)): CodexProConfig {
   const bashSessionArg = typeof args["bash-session"] === "string" ? args["bash-session"] : undefined;
   const codexSessionsArg = typeof args["codex-sessions"] === "string" ? args["codex-sessions"] : undefined;
   const codexDirArg = typeof args["codex-dir"] === "string" ? args["codex-dir"] : undefined;
+  const codexCompatArg = typeof args["codex-compat"] === "string" ? args["codex-compat"] : undefined;
   const requireBashSessionArg =
     args["require-bash-session"] === true
       ? "true"
@@ -310,6 +319,7 @@ export function loadConfig(argv = process.argv.slice(2)): CodexProConfig {
     requireBashSession,
     codexSessions: codexSessionsFrom(codexSessionsArg ?? process.env.CODEXPRO_CODEX_SESSIONS),
     codexDir: expandHome(codexDirArg || process.env.CODEXPRO_CODEX_DIR || path.join(os.homedir(), ".codex")),
+    codexCompatMode: codexCompatModeFrom(codexCompatArg ?? process.env.CODEXPRO_CODEX_COMPAT),
     writeMode: writeModeFrom(writeArg ?? process.env.CODEXPRO_WRITE_MODE),
     toolMode: toolModeFrom(toolModeArg ?? process.env.CODEXPRO_TOOL_MODE),
     inheritEnv: process.env.CODEXPRO_INHERIT_ENV === "1",

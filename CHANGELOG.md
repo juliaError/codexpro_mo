@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — Codex native compatibility fork
+
+- Added opt-in `--codex-compat off|safe|strict` configuration across the MCP
+  server, CLI, saved profiles, runtime status, doctor, and local admin page.
+- Added dynamic `codex_bootstrap` instruction precedence, skill manifests,
+  source hashes, aggregate context hashes, and an explicit configuration
+  compatibility report without copying the Codex home.
+- Added guarded `load_skill_resource` reads with traversal, blocked-path,
+  symlink-escape, binary, UTF-8, and byte-limit enforcement.
+- Added strict server-side bootstrap gates for source writes, edits, patches,
+  handoff/context writes, self-test mutation probes, and bash, including stale
+  context invalidation.
+- Added isolated compatibility smoke coverage using temporary HOME,
+  CODEX_HOME, workspaces, skills, and symlink fixtures.
+
 ## 0.29.0 (2026-07-13)
 
 - Replaced the heavy v9 Apps widget with a compact, host-theme-aware v10 card for selected user-visible results: workspace, analysis, changes, Git status, handoff, and terminal verification.

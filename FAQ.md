@@ -319,6 +319,26 @@ CodexPro is a local developer bridge, not an OS sandbox.
 
 Use it with repos you trust. Keep token auth enabled for public tunnels. Keep safe bash on unless you know why you need full bash. Read [SECURITY.md](SECURITY.md) before exposing it through a public tunnel.
 
+## Does CodexPro copy or directly read Codex AGENTS.md files and skills?
+
+With `--codex-compat safe|strict`, each `codex_bootstrap` reads the current
+supported files directly. It does not copy the Codex home into CodexPro.
+
+The effective context uses the global override-or-default instruction, followed
+by one highest-priority project instruction per directory from the workspace
+root to the requested target. Later, more specific layers win. The response
+includes source paths, SHA-256 hashes, a skill manifest, and an aggregate
+context hash.
+
+Future edits and skill upgrades therefore require only a new bootstrap, not a
+manual synchronization. A future Codex format or precedence change may still
+require an update to the compatibility layer itself.
+
+`strict` mode rechecks the context before supported writes and bash operations.
+The layer does not import credentials, sessions, memories, logs, native MCP
+runtime state, approvals, or sandbox policy, so it does not make the ChatGPT MCP
+runtime identical to native Codex.
+
 ## Where are saved settings stored?
 
 CodexPro stores local state under `~/.codexpro` by default. On Windows that is usually `C:\Users\<you>\.codexpro`.

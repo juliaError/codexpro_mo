@@ -311,7 +311,7 @@ try {
   if (!homeText.includes('Connection profile') || !homeText.includes('data-profile-form')) {
     throw new Error('onboarding page did not include the saved profile editor');
   }
-  for (const fieldName of ['tunnelName', 'ngrokConfig', 'cloudflareConfig', 'cloudflareTokenFile', 'toolCards', 'noInstallCloudflared']) {
+  for (const fieldName of ['tunnelName', 'ngrokConfig', 'cloudflareConfig', 'cloudflareTokenFile', 'toolCards', 'codexCompat', 'noInstallCloudflared']) {
     if (!homeText.includes(`name="${fieldName}"`)) {
       throw new Error(`onboarding page did not include profile field ${fieldName}`);
     }
@@ -369,6 +369,7 @@ try {
       bash: 'safe',
       bashTranscript: 'full',
       codexSessions: 'metadata',
+      codexCompat: 'strict',
       codexDir: path.join(root, '.codex'),
       bashSession: 'http-main',
       requireBashSession: true,
@@ -394,6 +395,7 @@ try {
     savedProfile.hostname !== 'codexpro-http-smoke.ngrok-free.app' ||
     savedProfile.bashTranscript !== 'full' ||
     savedProfile.codexSessions !== 'metadata' ||
+    savedProfile.codexCompat !== 'strict' ||
     savedProfile.bashSession !== 'http-main' ||
     savedProfile.requireBashSession !== true ||
     savedProfile.toolCards !== true ||

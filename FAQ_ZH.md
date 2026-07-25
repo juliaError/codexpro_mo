@@ -106,6 +106,29 @@ ChatGPT 能看到工具显式暴露的工作区内容：
 
 它不能读取 Codex 的隐藏运行时记忆，也不能读取工作区外的文件，除非你明确允许额外 root。
 
+## CodexPro 会复制还是直接读取我的 Codex AGENTS.md 和技能？
+
+启用 `--codex-compat safe|strict` 后，它会在每次 `codex_bootstrap` 时直接读取当前文件，不会把 `~/.codex` 复制到 CodexPro。
+
+所谓“合并”是：
+
+1. 先读取全局 `~/.codex/AGENTS.override.md`，没有时才读 `~/.codex/AGENTS.md`；
+2. 再从项目 root 走到目标目录，每个目录只采用最高优先级的规则文件；
+3. 后面、更具体目录的规则优先级更高；
+4. 返回每层内容、来源、SHA-256、技能清单和总上下文哈希。
+
+所以以后原生 Codex 或你的 skills 更新，不需要手动“传给” CodexPro；重新调用 bootstrap 即可。若 Codex 将来改变文件格式或优先级规则，这个兼容层本身仍可能需要升级。
+
+建议使用：
+
+```bash
+codexpro start --codex-compat strict
+```
+
+strict 模式在任何受支持的写入或 bash 操作前复核上下文；如果规则或 skill 在 bootstrap 后变化，操作会失败并要求重新 bootstrap。
+
+它不会读取或复制 `auth.json`、sessions、memory、日志、凭据、原生 MCP 运行状态、审批策略或 sandbox 配置，因此“更接近原生 agent”不等于“完全变成原生 agent”。
+
 ## ChatGPT 可以编辑什么？
 
 Normal coding 模式下，ChatGPT 可以在配置的工作区内写入和精确编辑文件。

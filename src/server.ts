@@ -13,6 +13,7 @@ import { gitDiff, gitDiffStatus, gitLog, gitStatus } from "./gitOps.js";
 import { readAiBridgeContext, readCodexContext, workspaceSummary } from "./workspaceOps.js";
 import { buildProContext, exportProContext } from "./proContext.js";
 import { codexproInventory, loadSkill } from "./capabilitiesOps.js";
+import { CodexBootstrapRegistry, loadCodexSkillResource } from "./codexCompat.js";
 import { listCodexSessions, readCodexSession } from "./codexSessions.js";
 import { TOOL_CARD_LEGACY_URIS, TOOL_CARD_MIME_TYPE, TOOL_CARD_URI, toolCardWidgetHtml } from "./toolCardWidget.js";
 import { hasSecretValue, redactSensitiveText, redactStructured } from "./redact.js";
@@ -418,6 +419,11 @@ function toolNamesForMode(config: CodexProConfig): string[] {
   for (const name of codexSessionToolNames(config)) {
     if (!names.includes(name)) names.push(name);
   }
+  if (config.codexCompatMode !== "off") {
+    for (const name of ["codex_bootstrap", "load_skill_resource"]) {
+      if (!names.includes(name)) names.push(name);
+    }
+  }
   return names;
 }
 
@@ -438,6 +444,7 @@ function registeredToolNames(server: McpServer): string[] {
 
 function shouldRegisterTool(config: CodexProConfig, name: string): boolean {
   if (config.connectionTest && CONNECTION_TEST_HIDDEN_TOOLS.has(name)) return false;
+  if (name === "codex_bootstrap" || name === "load_skill_resource") return config.codexCompatMode !== "off";
   if (name === "bash" && config.bashMode === "off") return false;
   if ((name === "write" || name === "edit" || name === "apply_patch") && config.writeMode !== "workspace") return false;
   if (name === "codex_sessions") return config.codexSessions !== "off";
@@ -464,6 +471,12 @@ function registerCodexTool(
 }
 
 function serverInstructions(config: CodexProConfig): string {
+  const bootstrapInstruction =
+    config.codexCompatMode === "strict"
+      ? "2. Call codex_bootstrap for the current target before any write, edit, patch, handoff write, context export, self-test write probe, or bash call. Re-bootstrap if rules, skills, or supported Codex config change."
+      : config.codexCompatMode === "safe"
+        ? "2. Call codex_bootstrap when Codex instructions or skills are relevant; safe mode exposes the context without enforcing mutation order."
+        : "2. Follow any AGENTS.md-style instructions returned by the workspace open call before editing files.";
   const editInstruction =
     config.connectionTest
       ? "4. Connection test mode is read-only. Write, patch, export, and handoff-writing tools are unavailable."
@@ -482,7 +495,7 @@ function serverInstructions(config: CodexProConfig): string {
     "",
     "Preferred workflow:",
     "1. Start with open_current_workspace. Use open_workspace only when the user gives a different root or asks to switch folders.",
-    "2. Follow any AGENTS.md-style instructions returned by the workspace open call before editing files.",
+    bootstrapInstruction,
     "3. Inspect with tree, search, and read. Do not use bash for git status, git diff, cat, sed, grep, rg, find, ls, or file reading.",
     editInstruction,
     bashInstruction,
@@ -496,7 +509,7 @@ function serverInstructions(config: CodexProConfig): string {
         ? `8. Bash session label for this server is "${config.bashSessionId}".`
         : "",
     "",
-    `Current modes: tool=${config.toolMode}, bash=${config.bashMode}, write=${config.writeMode}.`
+    `Current modes: tool=${config.toolMode}, bash=${config.bashMode}, write=${config.writeMode}, codex_compat=${config.codexCompatMode}.`
   ].filter(Boolean).join("\n");
 }
 
@@ -935,6 +948,7 @@ function getSharedWorkspaceManager(config: CodexProConfig): WorkspaceManager {
 export function createCodexProServer(config: CodexProConfig): McpServer {
   const workspaces = getSharedWorkspaceManager(config);
   const guard = new PathGuard(config);
+  const codexBootstrap = new CodexBootstrapRegistry(config, guard);
   const server = new McpServer({ name: "CodexPro", version: "0.29.0" }, { instructions: serverInstructions(config) });
   registeredToolNamesByServer.set(server as object, []);
   registerToolCardResource(server, config);
@@ -1052,6 +1066,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         requireBashSession: config.requireBashSession,
         codexSessions: config.codexSessions,
         codexDir: config.codexDir,
+        codexCompatMode: config.codexCompatMode,
         writeMode: config.writeMode,
         toolMode: config.toolMode,
         toolCards: config.toolCards,
@@ -1069,6 +1084,142 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         registeredToolCount: registeredToolNames(server).length
       };
       return textResult(`# CodexPro Server Config\n\n${JSON.stringify(safeConfig, null, 2)}`, safeConfig);
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "codex_bootstrap",
+    {
+      title: "Codex Bootstrap",
+      description:
+        "Dynamically assemble the effective Codex AGENTS.md chain, bounded skill manifest, hashes, and configuration compatibility report for a workspace target. No Codex files are copied.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id from open_workspace. Omit to use default workspace."),
+        target_path: z.string().optional().describe("Target file or directory inside the workspace. Default: ."),
+        include_instructions: z.boolean().optional().describe("Include instruction bodies in the response. Default: true."),
+        include_skills: z.boolean().optional().describe("Include the skill manifest in the response. Default: true.")
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Bootstrapping Codex context...",
+        "openai/toolInvocation/invoked": "Codex context bootstrapped"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const result = await codexBootstrap.bootstrap(workspace, args.target_path ?? ".");
+      const includeInstructions = parseBool(args.include_instructions, true);
+      const includeSkills = parseBool(args.include_skills, true);
+      const visibleLayers = result.instructionLayers.map((layer) =>
+        includeInstructions ? layer : { ...layer, text: "[omitted by include_instructions=false]" }
+      );
+      const visibleInstructions = includeInstructions ? result.effectiveInstructions : "";
+      const visibleSkills = includeSkills ? result.skills : [];
+      const text = [
+        "# Codex Bootstrap",
+        "",
+        `Mode: ${result.mode}`,
+        `Workspace: ${result.workspaceRoot}`,
+        `Target directory: ${result.targetDirectory}`,
+        `Context SHA-256: ${result.contextHash}`,
+        `Bootstrap token: ${result.bootstrapToken}`,
+        `Instruction layers: ${result.instructionLayers.length}`,
+        `Discovered skills: ${result.skills.length}`,
+        "",
+        "## Instruction sources",
+        "",
+        result.instructionLayers.length
+          ? result.instructionLayers
+              .map((layer) => `${layer.order + 1}. ${layer.scope} ${layer.path} (${layer.bytes} bytes, ${layer.sha256})`)
+              .join("\n")
+          : "No supported instruction files found.",
+        includeInstructions && visibleInstructions
+          ? `\n## Effective instructions\n\n\`\`\`markdown\n${visibleInstructions}\n\`\`\``
+          : "",
+        "",
+        "## Skills",
+        "",
+        includeSkills
+          ? visibleSkills.length
+            ? visibleSkills
+                .map(
+                  (skill) =>
+                    `- ${skill.name} [${skill.source}] ${skill.active ? "active" : `shadowed by ${skill.shadowedBy}`} — ${skill.skillPath} (${skill.bytes} bytes, ${skill.sha256})`
+                )
+                .join("\n")
+            : "No supported skills found."
+          : "Skill manifest omitted by request.",
+        "",
+        "## Configuration compatibility",
+        "",
+        JSON.stringify(result.configCompatibility, null, 2)
+      ]
+        .filter((part) => part !== "")
+        .join("\n");
+      return textResult(text, {
+        workspace_id: workspace.id,
+        workspace_root: result.workspaceRoot,
+        target_directory: result.targetDirectory,
+        mode: result.mode,
+        bootstrap_token: result.bootstrapToken,
+        bootstrapped_at: result.bootstrappedAt,
+        context_hash: result.contextHash,
+        instruction_layers: visibleLayers,
+        effective_instructions: visibleInstructions,
+        skills: visibleSkills,
+        skill_count: result.skills.length,
+        config_compatibility: result.configCompatibility
+      });
+    }
+  );
+
+  registerCodexTool(
+    config,
+    server,
+    "load_skill_resource",
+    {
+      title: "Load Skill Resource",
+      description:
+        "Read one bounded UTF-8 resource by relative path from an already discoverable Codex skill root. Absolute paths, traversal, blocked files, binary data, and symlink escapes are rejected.",
+      inputSchema: {
+        workspace_id: z.string().optional().describe("Workspace id from open_workspace. Omit to use default workspace."),
+        target_path: z.string().optional().describe("Workspace target used for project-skill discovery. Default: ."),
+        name: z.string().describe("Exact skill name from codex_bootstrap."),
+        source: z.enum(["project", "user", "plugin", "admin"]).optional().describe("Optional source when names are ambiguous."),
+        skill_path: z.string().optional().describe("Exact display path from codex_bootstrap when name/source are ambiguous."),
+        resource_path: z.string().describe("Relative resource path inside the selected skill, for example SKILL.md or references/rules.md."),
+        max_bytes: z.number().int().min(1000).max(2000000).optional().describe("Maximum bytes to return, capped by CODEXPRO_MAX_READ_BYTES.")
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
+      _meta: {
+        ...toolCardMeta(),
+        "openai/toolInvocation/invoking": "Loading skill resource...",
+        "openai/toolInvocation/invoked": "Skill resource loaded"
+      }
+    },
+    async (args) => {
+      const workspace = workspaces.getWorkspace(args.workspace_id);
+      const loaded = await loadCodexSkillResource(config, guard, workspace, {
+        targetPath: args.target_path,
+        name: String(args.name ?? ""),
+        source: args.source,
+        skillPath: args.skill_path,
+        resourcePath: String(args.resource_path ?? ""),
+        maxBytes: args.max_bytes
+      });
+      const text = `# Load Skill Resource\n\nSkill: ${loaded.skill.name}\nSource: ${loaded.skill.source}\nSkill: ${loaded.skill.skillPath}\nResource: ${loaded.resourcePath}\nBytes: ${loaded.bytes}\nSHA-256: ${loaded.sha256}\n\n\`\`\`text\n${loaded.text}\n\`\`\``;
+      return textResult(text, {
+        workspace_id: workspace.id,
+        root: workspace.root,
+        skill: loaded.skill,
+        resource_path: loaded.resourcePath,
+        bytes: loaded.bytes,
+        sha256: loaded.sha256,
+        text: loaded.text
+      });
     }
   );
 
@@ -1157,6 +1308,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
         } else {
           try {
             assertWriteToolAllowed(config, probePath);
+            await codexBootstrap.assertFresh(workspace, probePath);
             const content = [
               "# CodexPro Self Test",
               "",
@@ -1219,6 +1371,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
           if (config.bashMode === "off") {
             check("bash policy", "warn", "bash disabled");
           } else {
+            await codexBootstrap.assertFresh(workspace, ".");
             const bashProbeOptions = { timeoutMs: 10_000, sessionId: config.bashSessionId };
             const pwd = await runBash(config, guard, workspace, "pwd", bashProbeOptions);
             if (config.bashMode === "safe") {
@@ -1798,6 +1951,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       const workspace = workspaces.getWorkspace(args.workspace_id);
       const resolved = guard.resolve(workspace, args.path, { forWrite: true });
       assertWriteToolAllowed(config, resolved.relPath);
+      await codexBootstrap.assertFresh(workspace, resolved.relPath);
       const result = await writeTextFile(config, guard, workspace, args.path, String(args.content ?? ""), {
         createDirs: args.create_dirs !== false,
         overwrite: args.overwrite !== false
@@ -1844,6 +1998,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
       const workspace = workspaces.getWorkspace(args.workspace_id);
       const resolved = guard.resolve(workspace, args.path, { forWrite: true });
       assertWriteToolAllowed(config, resolved.relPath);
+      await codexBootstrap.assertFresh(workspace, resolved.relPath);
       const result = await editTextFile(config, guard, workspace, args.path, String(args.old_text ?? ""), String(args.new_text ?? ""), {
         replaceAll: parseBool(args.replace_all, false),
         expectedReplacements: args.expected_replacements
@@ -1885,7 +2040,11 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
-      const result = applyWorkspacePatch(config, guard, workspace, String(args.patch ?? ""));
+      const patch = String(args.patch ?? "");
+      for (const touchedPath of patchTouchedPaths(patch)) {
+        await codexBootstrap.assertFresh(workspace, touchedPath);
+      }
+      const result = applyWorkspacePatch(config, guard, workspace, patch);
       if (result.changed) invalidateWorkspaceAnalysis(workspace.id);
       const text = [
         "# Apply Patch",
@@ -1933,6 +2092,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
+      await codexBootstrap.assertFresh(workspace, args.cwd ?? ".");
       const result = await runBash(config, guard, workspace, String(args.command ?? ""), {
         cwd: args.cwd,
         timeoutMs: args.timeout_ms,
@@ -2426,6 +2586,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
+      await codexBootstrap.assertFresh(workspace, `${config.contextDir}/pro-context.md`);
       const result = await exportProContext(config, guard, workspace, {
         title: args.title,
         selectedPaths: args.selected_paths,
@@ -2572,6 +2733,7 @@ export function createCodexProServer(config: CodexProConfig): McpServer {
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
+      await codexBootstrap.assertFresh(workspace, `${config.contextDir}/current-plan.md`);
       const result = await writeAgentHandoff(config, guard, workspace, {
         agent: args.agent ?? "custom",
         agentName: args.agent_name,
@@ -2636,6 +2798,7 @@ ${result.prompt}
     },
     async (args) => {
       const workspace = workspaces.getWorkspace(args.workspace_id);
+      await codexBootstrap.assertFresh(workspace, `${config.contextDir}/current-plan.md`);
       const result = await writeAgentHandoff(config, guard, workspace, {
         agent: "codex",
         title: cleanOneLine(args.title, "Codex implementation plan"),

@@ -220,6 +220,8 @@ const saved = run([
   'agent',
   '--tool-mode',
   'full',
+  '--codex-compat',
+  'strict',
   '--bash-transcript',
   'full',
   '--widget-domain',
@@ -234,7 +236,7 @@ if (!saved.includes('Saved workspace settings')) {
 }
 
 const shown = run(['settings', 'show', '--root', root], env);
-for (const expected of ['Tunnel', 'ngrok', 'codexpro-test.ngrok-free.app', '19087', 'Tool cards', 'on', 'Bash transcript', 'full', '<saved>']) {
+for (const expected of ['Tunnel', 'ngrok', 'codexpro-test.ngrok-free.app', '19087', 'Tool cards', 'on', 'Bash transcript', 'full', 'Codex compat', 'strict', '<saved>']) {
   if (!shown.includes(expected)) {
     throw new Error(`settings show missing ${expected}\n${shown}`);
   }
@@ -243,9 +245,20 @@ if (shown.includes('codexpro-settings-token')) {
   throw new Error(`settings show leaked token\n${shown}`);
 }
 const profile = await readProfile(root, home);
-if (profile.toolMode !== 'full' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexpro.test') {
+if (profile.toolMode !== 'full' || profile.codexCompat !== 'strict' || profile.toolCards !== true || profile.bashTranscript !== 'full' || profile.widgetDomain !== 'https://widgets.codexpro.test') {
   throw new Error(`settings profile did not persist tool/widget options: ${JSON.stringify(profile)}`);
 }
+
+runFail([
+  'settings',
+  'set',
+  '--root',
+  root,
+  '--tunnel',
+  'none',
+  '--codex-compat',
+  'typo'
+], env, /codex-compat must be off, safe, or strict/i);
 
 runFail([
   'settings',
