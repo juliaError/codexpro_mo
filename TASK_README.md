@@ -20,7 +20,9 @@ per-workspace enablement.
 
 ## Immutable boundaries
 
-- Do not modify the globally installed CodexPro package.
+- Do not modify the globally installed CodexPro package unless separately
+  authorized. The user explicitly authorized replacing it with this fork on
+  2026-07-25 for workflow v7.
 - Do not modify files under the user's real `~/.codex` or `~/.codexpro`.
 - Do not expose or copy `auth.json`, sessions, archived sessions, logs,
   credentials, private keys, or unrelated Codex runtime files.
@@ -188,3 +190,71 @@ recommended default-strict command.
   branch install with `--ignore-scripts`, executable `codexpro`, required
   `dist` files, and doctor reporting default strict mode.
 - [x] Commit, publish, and merge the install-readiness follow-up into `main`.
+
+### v7: Authorized global installation
+
+- [x] Receive explicit user authorization to replace the globally installed
+  CodexPro with `github:juliaError/codexpro_mo`.
+- [x] Record the existing executable, package identity, active process state,
+  and hashes of existing `~/.codexpro` files without printing their contents.
+- [x] Attempt the direct GitHub global install with `--ignore-scripts`. Although
+  npm returned success, artifact verification found an empty/incomplete global
+  package, no CLI entry point, and no `dist/`; do not treat this attempt as a
+  successful installation.
+- [x] Recover by installing a verified package artifact built from fork commit
+  `53665676ee118376743097ba1ba5580609ae8400`, without running dependency
+  lifecycle scripts globally. The package SHA-256 was
+  `36d30f8b593d86e07787b17d10d6e92b6a0af33949f871bf285792a440f63265`.
+- [x] Verify executable resolution, package contents, CLI version, default
+  strict compatibility, and unchanged `~/.codexpro` file hashes.
+- [x] Validate a reliable one-command GitHub reinstall form for this machine:
+  `npm install -g github:juliaError/codexpro_mo --ignore-scripts
+  --install-links=true`. An isolated-prefix install produced a real package
+  directory, a working CLI, the compatibility module, and the exact expected
+  `dist/config.js` SHA-256.
+- [x] Update the English and Chinese README files to use the verified
+  one-command GitHub installation form; `git diff --check` passes.
+- [x] Publish the documentation correction to the fork through draft PR
+  [`juliaError/codexpro_mo#3`](https://github.com/juliaError/codexpro_mo/pull/3).
+
+### v8: Strict bootstrap connector diagnosis
+
+- [x] Record the observed production symptom: reads succeed, but every bash or
+  write call reports `Strict Codex compatibility requires a fresh
+  codex_bootstrap` even after root and target bootstraps.
+- [x] Trace bootstrap state ownership across HTTP/MCP requests: the workspace
+  manager is shared, but `createCodexProServer()` creates a new
+  `CodexBootstrapRegistry` for each MCP session, so bootstrap hashes are not
+  visible to another session. The failing comparison used the same `.` target,
+  ruling out a target-path mismatch.
+- [x] Reproduce the failure with an isolated strict HTTP server: bootstrap plus
+  `bash pwd` succeeded in session A, while the same bash call in session B
+  failed with the production `fresh codex_bootstrap` message. This is connector
+  session-state loss, not a project-data or spreadsheet error.
+- [x] Keep this phase diagnostic-only; do not change or publish runtime code
+  without a separate user request to fix the defect.
+
+### v9: Permanent cross-session strict-mode repair
+
+The user explicitly authorized a permanent repair on 2026-07-27. This
+supersedes the v8 diagnostic-only boundary for the scoped runtime and test
+changes below.
+
+- [x] Freeze the repair contract: one HTTP service shares one bootstrap
+  registry across its authenticated MCP sessions; each mutation still rebuilds
+  the current context and must match a stored workspace/target context hash.
+- [x] Inject service-owned shared bootstrap state into every HTTP MCP server
+  session without making it global across independent HTTP service instances.
+- [x] Add a strict HTTP regression proving pre-bootstrap failure,
+  cross-session success, stale-context failure, and cross-session refresh
+  recovery. The first run correctly exposed a fixture mistake
+  (`CODEX_HOME` instead of `CODEXPRO_CODEX_DIR`); the corrected test passes.
+- [x] Rebuild tracked `dist/` output; focused HTTP, full `npm run smoke`, and
+  `npm run stress` pass. Two consecutive builds produced the same aggregate
+  `dist/` SHA-256
+  `221af649c4e5d27692548f84ead206ca9e048de24d5e683f712376e694f50db0`.
+  The isolated package SHA-256 is
+  `ce14b5a12aa31d0892d09084c6e1c4b3ca06b37e487e704d073927432ad71ca3`,
+  and its `dist/server.js` matches the tested working tree.
+- [ ] Publish and merge the repair into the fork, then replace the global build
+  while proving `~/.codexpro` files remain unchanged.

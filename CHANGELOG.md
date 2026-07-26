@@ -2,6 +2,9 @@
 
 ## Unreleased — Codex native compatibility fork
 
+- Fixed strict HTTP mode so one running service shares fresh bootstrap state
+  across authenticated MCP sessions while still failing closed after rules,
+  skills, or supported configuration change.
 - Tracked the compiled `dist/` output so GitHub installs remain runnable when
   local npm security policy skips Git-dependency lifecycle builds.
 - Changed this fork's compatibility default to `strict` across direct MCP

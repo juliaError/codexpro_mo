@@ -88,10 +88,13 @@ files under the Codex home.
 
 ## Strict-mode mutation gate
 
-Strict mode stores successful bootstrap contexts only in the running MCP server
-process. A bootstrap token is bound to the workspace, canonical target
-directory, mode, effective instruction chain, skill manifest, and supported
-configuration.
+Strict mode stores successful bootstrap contexts only in the running CodexPro
+service process. For HTTP transport, authenticated MCP sessions connected to
+the same service share this in-memory registry, so connector session renewal
+does not discard a valid bootstrap. Independent services and process restarts
+do not share or persist bootstrap state. A bootstrap token is bound to the
+workspace, canonical target directory, mode, effective instruction chain,
+skill manifest, and supported configuration.
 
 Before each mutation:
 

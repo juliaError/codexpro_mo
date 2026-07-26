@@ -945,10 +945,24 @@ function getSharedWorkspaceManager(config: CodexProConfig): WorkspaceManager {
   return manager;
 }
 
-export function createCodexProServer(config: CodexProConfig): McpServer {
+export type CodexProServiceState = {
+  workspaces: WorkspaceManager;
+  guard: PathGuard;
+  codexBootstrap: CodexBootstrapRegistry;
+};
+
+export function createCodexProServiceState(config: CodexProConfig): CodexProServiceState {
   const workspaces = getSharedWorkspaceManager(config);
   const guard = new PathGuard(config);
   const codexBootstrap = new CodexBootstrapRegistry(config, guard);
+  return { workspaces, guard, codexBootstrap };
+}
+
+export function createCodexProServer(
+  config: CodexProConfig,
+  serviceState = createCodexProServiceState(config)
+): McpServer {
+  const { workspaces, guard, codexBootstrap } = serviceState;
   const server = new McpServer({ name: "CodexPro", version: "0.29.0" }, { instructions: serverInstructions(config) });
   registeredToolNamesByServer.set(server as object, []);
   registerToolCardResource(server, config);

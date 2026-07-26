@@ -633,6 +633,63 @@ try {
   await waitForExit(child).catch(() => {});
 }
 
+const strictRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-strict-shared-'));
+const strictCodexHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-strict-codex-home-'));
+const strictProHome = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-strict-pro-home-'));
+await fs.writeFile(path.join(strictCodexHome, 'AGENTS.md'), '# Strict HTTP session fixture\n', 'utf8');
+const strictPort = await getFreePort();
+const strictToken = 'codexpro-http-strict-token';
+const strictChild = spawn('node', ['dist/http.js'], {
+  cwd: path.resolve('.'),
+  env: {
+    ...process.env,
+    CODEXPRO_CODEX_DIR: strictCodexHome,
+    CODEXPRO_HOME: strictProHome,
+    CODEXPRO_ROOT: strictRoot,
+    CODEXPRO_ALLOWED_ROOTS: strictRoot,
+    CODEXPRO_PORT: String(strictPort),
+    CODEXPRO_HTTP_TOKEN: strictToken,
+    CODEXPRO_CODEX_COMPAT: 'strict',
+    CODEXPRO_BASH_MODE: 'safe',
+    CODEXPRO_WRITE_MODE: 'workspace'
+  },
+  stdio: ['ignore', 'pipe', 'pipe']
+});
+try {
+  await waitForListening(strictChild);
+  const strictMcpUrl = `http://127.0.0.1:${strictPort}/mcp?codexpro_token=${encodeURIComponent(strictToken)}`;
+
+  await withClient(strictMcpUrl, async (client) => {
+    const blocked = await client.callTool({ name: 'bash', arguments: { command: 'pwd' } });
+    const blockedText = blocked.content?.find?.((part) => part.type === 'text')?.text ?? '';
+    if (!blocked.isError || !/fresh codex_bootstrap/i.test(blockedText)) {
+      throw new Error(`strict HTTP mutation was not blocked before bootstrap: ${JSON.stringify(blocked)}`);
+    }
+    await callTool(client, 'codex_bootstrap', { target_path: '.' });
+  });
+
+  await withClient(strictMcpUrl, async (client) => {
+    await callTool(client, 'bash', { command: 'pwd' });
+  });
+
+  await fs.writeFile(path.join(strictCodexHome, 'AGENTS.md'), '# Strict HTTP session fixture changed\n', 'utf8');
+  await withClient(strictMcpUrl, async (client) => {
+    const stale = await client.callTool({ name: 'bash', arguments: { command: 'pwd' } });
+    const staleText = stale.content?.find?.((part) => part.type === 'text')?.text ?? '';
+    if (!stale.isError || !/fresh codex_bootstrap/i.test(staleText)) {
+      throw new Error(`strict HTTP mutation did not fail after context changed: ${JSON.stringify(stale)}`);
+    }
+    await callTool(client, 'codex_bootstrap', { target_path: '.' });
+  });
+
+  await withClient(strictMcpUrl, async (client) => {
+    await callTool(client, 'bash', { command: 'pwd' });
+  });
+} finally {
+  strictChild.kill('SIGTERM');
+  await waitForExit(strictChild).catch(() => {});
+}
+
 const disabledRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-http-disabled-tools-'));
 const disabledPort = await getFreePort();
 const disabledToken = 'codexpro-http-disabled-token';

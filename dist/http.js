@@ -10,7 +10,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { expandHome, loadConfig } from "./config.js";
 import { profilePathForRoot, readRuntimeConnection, readWorkspaceProfile, sanitizeWorkspaceProfile, saveWorkspaceProfile } from "./profileStore.js";
 import { redactSensitiveText, redactStructured } from "./redact.js";
-import { createCodexProServer } from "./server.js";
+import { createCodexProServer, createCodexProServiceState } from "./server.js";
 function escapeHtml(value) {
     return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -1405,6 +1405,7 @@ async function main() {
             "Set CODEXPRO_HTTP_TOKEN, use `codexpro start` to generate one, " +
             "or set CODEXPRO_ALLOW_NO_HTTP_TOKEN=1 only for a trusted local-only setup.");
     }
+    const serviceState = createCodexProServiceState(config);
     const app = express();
     const logRequests = process.env.CODEXPRO_LOG_REQUESTS === "1";
     function tokenMatches(value) {
@@ -1602,7 +1603,7 @@ async function main() {
                     if (closedSessionId)
                         transports.delete(closedSessionId);
                 };
-                const server = createCodexProServer(config);
+                const server = createCodexProServer(config, serviceState);
                 await server.connect(transport);
             }
             else {
