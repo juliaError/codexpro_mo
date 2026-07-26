@@ -2741,19 +2741,22 @@ function createConnectorDetails(endpoint, token, localBase = '') {
   };
 }
 
+function displayServerUrl(serverUrl) {
+  return redactForLog(serverUrl);
+}
+
 function printCreateAppFields(details) {
   console.log('Create App fields:');
   console.log('');
   console.log('  Name: CodexPro');
   console.log('  Description: Local coding workspace bridge for ChatGPT.');
   console.log('  Connection: Server URL');
-  console.log(`  Server URL: ${details.serverUrl}`);
+  console.log(`  Server URL: ${displayServerUrl(details.serverUrl)}`);
+  console.log('  Full URL: copied to the clipboard; press c to copy it again.');
   console.log('  Authentication: No Authentication / None');
   console.log('');
   if (details.token) {
-    console.log('If your ChatGPT UI supports custom headers instead, you can use:');
-    console.log('');
-    console.log(`  Authorization: Bearer ${details.token}`);
+    console.log('CodexPro authentication is embedded in the copied URL. The token is not printed.');
   } else {
     console.log('Authorization: disabled');
   }
@@ -2780,15 +2783,15 @@ function printConnectorBlock(endpoint, token, options = {}) {
   console.log(`  Connector  ${publicHttps ? 'public HTTPS' : 'local HTTP'}`);
   if (copied.ok) {
     console.log(`  URL        copied with ${copied.command}`);
-    console.log(`  Server URL ${serverUrl}`);
+    console.log(`  Server URL ${displayServerUrl(serverUrl)}`);
   } else if (shouldCopy) {
-    console.log('  URL        copy failed; copy manually:');
-    console.log(serverUrl);
+    console.log('  URL        copy failed; the token-protected URL was not printed.');
+    console.log(`  Endpoint   ${displayServerUrl(serverUrl)}`);
   } else if (options.copyUrl === false && publicHttps) {
-    console.log('  URL        not copied; press c to copy or u to show');
+    console.log('  URL        not copied; press c to copy or u to show a redacted preview');
   } else if (!publicHttps) {
     console.log('  URL        local HTTP only');
-    console.log(serverUrl);
+    console.log(displayServerUrl(serverUrl));
   }
   if (options.openChatgpt) {
     statusLine(opened ? 'ok' : 'warn', opened ? 'Opened ChatGPT connector settings' : 'Could not open ChatGPT automatically');
@@ -2797,7 +2800,7 @@ function printConnectorBlock(endpoint, token, options = {}) {
   if (options.connectionTest) {
     console.log(paint('bold', 'Connection test'));
     console.log('  1. In ChatGPT, open Settings -> Plugins and create a development plugin.');
-    console.log('  2. Paste the Server URL above and choose Authentication: No Authentication.');
+    console.log('  2. Paste the copied Server URL and choose Authentication: No Authentication.');
     console.log('  3. Watch this terminal for: [CodexPro] POST /mcp received');
     console.log('');
     console.log('  No POST /mcp     ChatGPT or the tunnel did not reach CodexPro.');
@@ -2815,7 +2818,7 @@ function printControlHelp() {
   console.log('Controls');
   console.log('  Enter  open ChatGPT connector settings in your browser');
   console.log('  c      copy Server URL again');
-  console.log('  u      print Server URL only');
+  console.log('  u      print a redacted Server URL preview');
   console.log('  o      open local setup/status page');
   console.log('  p      print Create App fields');
   console.log('  m      print mode help');
@@ -3684,14 +3687,14 @@ function runControlPanel(details, cleanup = cleanupChildren) {
         console.log(copied.ok ? `\nServer URL copied with ${copied.command}.` : '\nCould not copy automatically.');
         writeControlPrompt();
       } else if (normalized === 'u') {
-        console.log(`\n${details.serverUrl}`);
+        console.log(`\n${displayServerUrl(details.serverUrl)}`);
         writeControlPrompt();
       } else if (normalized === 'o') {
         if (!details.localStatusUrl) {
           console.log('\nNo local status page URL is available for this run.');
         } else {
           const opened = openUrl(details.localStatusUrl);
-          console.log(opened ? '\nOpened local CodexPro setup/status page.' : `\nCould not open automatically. Open this URL:\n${details.localStatusUrl}`);
+          console.log(opened ? '\nOpened local CodexPro setup/status page.' : `\nCould not open automatically. The token-protected local URL was not printed.\n${displayServerUrl(details.localStatusUrl)}`);
         }
         writeControlPrompt();
       } else if (normalized === 'p') {

@@ -274,3 +274,51 @@ changes below.
   clipboard without printing or recording its authentication token. Because a
   quick-tunnel hostname changes on restart, the user must paste this new URL
   into the existing `CodexPro_america1` connector once.
+
+### v10: Stable Tailscale Funnel and credential-safe launcher output
+
+The user chose a stable public connector URL that does not require a privately
+owned domain. This phase replaces the current workspace's Cloudflare quick
+tunnel with a device-stable Tailscale Funnel while preserving strict Codex
+compatibility and safe bash defaults.
+
+- [x] Install the official Tailscale 1.98.9 standalone macOS package and let the
+  user approve its system/VPN extension and complete personal-account login.
+- [x] Verify the client is running, MagicDNS is enabled, and the Mac has a
+  stable device-specific `*.ts.net` Funnel hostname. Keep the actual hostname
+  out of the public repository audit record.
+- [x] Enable Funnel once and verify that it proxies the existing local CodexPro
+  service at `127.0.0.1:8788` through the stable HTTPS hostname.
+- [x] Change only the `/Volumes/ORICO/美国出口和对美信任` saved profile from
+  `cloudflare` to `tailscale`; preserve port 8788, agent mode, strict Codex
+  compatibility, and the saved authentication-token behavior.
+- [x] Detect that the launcher printed the full token-bearing Server URL,
+  immediately stop the exposed instance, and rotate its token before any
+  ChatGPT connector was created from it.
+- [x] Change launcher and control-panel output so the full Server URL is copied
+  to the clipboard but every terminal preview is redacted, including initial
+  startup, `u`, `p`, copy-failure, and local-status fallbacks. Update English
+  and Chinese documentation accordingly.
+- [x] Verify initial, `u`, and `p` output with a synthetic token; no synthetic
+  token text appeared. `git diff --check`, build, the full smoke suite, and the
+  stress suite pass.
+- [x] After explicit approval, package and globally install the tested fork. The
+  package SHA-256 is
+  `6411a6df6f3e7b59e343d679b4903e6a03beac99a288b51a71b87ce0c31811ae`;
+  the installed launcher SHA-256 matches the tested source at
+  `f59c42dfde58abea418b3485beba2ad37a8681e2b1b978677eddafbf92826fd6`.
+- [x] Restart the real service with the global CLI. The terminal prints only a
+  redacted Server URL while `pbcopy` contains a valid 64-character-token URL.
+  Public health returns HTTP 200 for the intended workspace with `bash=safe`;
+  session A bootstrap followed by session B `bash pwd` succeeds in strict mode.
+  `codexpro doctor --port 8799` reports ready while the production service
+  remains active on port 8788.
+
+#### Project-switching boundary
+
+- The fixed `ts.net` hostname belongs to this Mac, not to one repository, so a
+  ChatGPT connector can retain the same hostname when CodexPro changes projects.
+- Workspace profiles currently store authentication tokens independently. A
+  one-connector/no-per-project-setup workflow therefore still needs an explicit
+  shared-connector-default feature or an intentionally broad allowed-root hub;
+  do not silently broaden access from one project to an entire drive.

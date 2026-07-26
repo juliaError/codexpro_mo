@@ -47,7 +47,9 @@ cd /path/to/your/repo
 codexpro setup
 ```
 
-CodexPro prints and copies the Server URL. In ChatGPT, open:
+CodexPro copies the complete Server URL to the clipboard and prints only a
+redacted preview so the connector token does not enter terminal logs. In
+ChatGPT, open:
 
 ```text
 Settings -> Security and login -> Developer mode: on
