@@ -256,5 +256,21 @@ changes below.
   The isolated package SHA-256 is
   `ce14b5a12aa31d0892d09084c6e1c4b3ca06b37e487e704d073927432ad71ca3`,
   and its `dist/server.js` matches the tested working tree.
-- [ ] Publish and merge the repair into the fork, then replace the global build
-  while proving `~/.codexpro` files remain unchanged.
+- [x] Publish and merge PR
+  [`juliaError/codexpro_mo#3`](https://github.com/juliaError/codexpro_mo/pull/3)
+  into fork `main` as
+  `2342b5c50381820763eb3f72ff10d56dfb384ec7`, then install that exact tree
+  globally with the reliable GitHub install command.
+- [x] Verify the installed `dist/http.js` and `dist/server.js` hashes match
+  fork `main`; the six persistent profile files retain aggregate SHA-256
+  `d9259af7c00feaa0dd6f2a75d3dd93b9379aa2135eeaadadadb491cda3994e6c`
+  and the non-runtime `~/.codexpro` aggregate remains
+  `6c409defedba4af13db3309d36d6208fdf195c4fabed5bbbd6091ab093ac82a0`.
+- [x] Restart the `/Volumes/ORICO/美国出口和对美信任` service on
+  `127.0.0.1:8788` with `strict` compatibility and `bash=safe`; a real
+  installed-build test bootstrapped in session A, closed it, and successfully
+  ran `bash pwd` in session B against the intended workspace.
+- [x] Copy the restarted Cloudflare quick-tunnel Server URL to the system
+  clipboard without printing or recording its authentication token. Because a
+  quick-tunnel hostname changes on restart, the user must paste this new URL
+  into the existing `CodexPro_america1` connector once.
