@@ -205,6 +205,29 @@ Then ChatGPT uses:
 https://your-device.your-tailnet.ts.net/mcp?codexpro_token=keep-this-token-stable
 ```
 
+To reuse one stable connector from every project without a first-run prompt,
+promote a configured workspace profile once:
+
+```bash
+codexpro settings default set --from-root /path/to/configured/project
+```
+
+After that, a fresh project needs only:
+
+```bash
+cd /path/to/another/project
+codexpro start
+```
+
+CodexPro copies the reusable connection and safety fields into a profile for
+the exact current directory. It never copies the source workspace root or any
+additional allowed roots, so the live server remains scoped to the new current
+directory. A workspace profile overrides the global default; explicit CLI or
+environment tunnel settings override both. Use `--no-profile` to bypass both.
+Audit or remove the default with `codexpro settings default show` and
+`codexpro settings default delete --yes`. Tokens are stored with mode `0600`
+and shown only as `<saved>`.
+
 ## Safety Defaults
 
 - Public tunnel mode requires a CodexPro HTTP token.

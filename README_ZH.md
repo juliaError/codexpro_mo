@@ -286,12 +286,13 @@ codexpro pro-apply --root /absolute/path/to/your/repo --file plan.md
 
 ## 稳定 URL 怎么选
 
-ChatGPT App 需要一个可访问的 Server URL。你有三个常用选择：
+ChatGPT App 需要一个可访问的 Server URL。你有四个常用选择：
 
 ```text
 Cloudflare quick tunnel   最快演示路径。每次重启 URL 都变。
 ngrok free dev domain     推荐给大多数用户。免费账号给一个稳定 dev domain。
 Cloudflare named tunnel   适合已有自定义域名的用户。
+Tailscale Funnel          不要求自有域名，使用这台设备稳定的 ts.net 地址。
 ```
 
 ### Cloudflare quick tunnel
@@ -331,6 +332,39 @@ codexpro start
 ```
 
 ChatGPT 里的 Server URL 可以保持不变。
+
+### Tailscale Funnel 与跨项目默认连接
+
+Tailscale 已登录、MagicDNS 和 Funnel 已启用后，可以保存固定设备地址：
+
+```bash
+codexpro settings set \
+  --tunnel tailscale \
+  --hostname your-device.your-tailnet.ts.net \
+  --token keep-this-token-stable
+```
+
+如果希望以后进入任何新项目都不再询问，把一个已经配置好的工作区设为
+全局默认连接一次：
+
+```bash
+codexpro settings default set --from-root "/已配置的项目路径"
+```
+
+以后切换项目只需要：
+
+```bash
+cd "/新项目路径"
+codexpro start
+```
+
+CodexPro 只继承隧道、端口、token 和安全模式，并把它绑定到当前 `cd`
+目录；不会继承来源项目的 workspace root，也不会增加额外 allowed roots。
+当前项目自己的 profile 优先于全局默认，显式 CLI 或环境变量又优先于两者；
+`--no-profile` 会同时跳过项目 profile 和全局默认。可以用
+`codexpro settings default show` 审计，用
+`codexpro settings default delete --yes` 删除。token 文件权限为 `0600`，
+命令输出只显示 `<saved>`。
 
 ### Cloudflare named tunnel
 
@@ -458,6 +492,8 @@ codexpro doctor
 codexpro settings
 codexpro settings list
 codexpro settings set --tunnel ngrok --hostname your-name.ngrok-free.dev
+codexpro settings default set
+codexpro settings default show
 codexpro settings delete --yes
 codexpro pro-bundle --copy
 codexpro execute-handoff --agent opencode --model provider/model --dry-run

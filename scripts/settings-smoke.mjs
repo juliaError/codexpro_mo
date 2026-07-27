@@ -195,6 +195,9 @@ const nativeRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-na
 const defaultStrictRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-default-strict-'));
 const explicitOffRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-explicit-off-'));
 const ngrokRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-ngrok-'));
+const globalDefaultSourceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-source-'));
+const globalDefaultRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-root-'));
+const globalDefaultInteractiveRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-interactive-'));
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-home-'));
 const env = { ...process.env, CODEXPRO_HOME: home };
 delete env.CODEXPRO_CODEX_COMPAT;
@@ -815,6 +818,176 @@ if (!tailscalePortFailure.includes(`funnel|--https=8443|http://127.0.0.1:${tails
   throw new Error(`tailscale start did not map hostname port to Funnel HTTPS port\n${tailscalePortFailure}`);
 }
 
+const globalDefaultPort = await getFreePort();
+run([
+  'settings',
+  'set',
+  '--root',
+  globalDefaultSourceRoot,
+  '--tunnel',
+  'tailscale',
+  '--hostname',
+  'codexpro-global.tailnet.ts.net',
+  '--port',
+  String(globalDefaultPort),
+  '--mode',
+  'agent',
+  '--bash',
+  'safe',
+  '--codex-compat',
+  'strict',
+  '--token',
+  'codexpro-global-default-token'
+], env);
+const realGlobalDefaultSourceRoot = await fs.realpath(globalDefaultSourceRoot);
+const globalDefaultSourceId = createHash('sha256').update(realGlobalDefaultSourceRoot).digest('hex').slice(0, 24);
+const globalDefaultSourcePath = path.join(home, 'profiles', `${globalDefaultSourceId}.json`);
+const tamperedSourceProfile = JSON.parse(await fs.readFile(globalDefaultSourcePath, 'utf8'));
+tamperedSourceProfile.allowRoots = ['/'];
+tamperedSourceProfile.host = '0.0.0.0';
+await fs.writeFile(globalDefaultSourcePath, `${JSON.stringify(tamperedSourceProfile, null, 2)}\n`, { mode: 0o600 });
+const defaultSaved = run([
+  'settings',
+  'default',
+  'set',
+  '--from-root',
+  globalDefaultSourceRoot
+], env);
+if (!defaultSaved.includes('Saved global default connector') || !defaultSaved.includes('<saved>')) {
+  throw new Error(`global default set did not report a redacted saved connector\n${defaultSaved}`);
+}
+if (defaultSaved.includes('codexpro-global-default-token')) {
+  throw new Error(`global default set leaked its token\n${defaultSaved}`);
+}
+const defaultPath = path.join(home, 'default-profile.json');
+const defaultProfile = JSON.parse(await fs.readFile(defaultPath, 'utf8'));
+if (
+  defaultProfile.root !== undefined ||
+  defaultProfile.profilePath !== undefined ||
+  defaultProfile.defaultProfilePath !== undefined ||
+  defaultProfile.allowRoots !== undefined ||
+  defaultProfile.host !== undefined ||
+  defaultProfile.tunnel !== 'tailscale' ||
+  defaultProfile.hostname !== 'codexpro-global.tailnet.ts.net' ||
+  defaultProfile.token !== 'codexpro-global-default-token'
+) {
+  throw new Error(`global default file has the wrong scope or settings: ${JSON.stringify({
+    ...defaultProfile,
+    token: defaultProfile.token ? '<saved>' : ''
+  })}`);
+}
+if (process.platform !== 'win32') {
+  const mode = (await fs.stat(defaultPath)).mode & 0o777;
+  if (mode !== 0o600) throw new Error(`global default permissions were ${mode.toString(8)}, expected 600`);
+}
+const defaultShown = run(['settings', 'default', 'show'], env);
+if (!defaultShown.includes('codexpro-global.tailnet.ts.net') || !defaultShown.includes('<saved>') || defaultShown.includes('codexpro-global-default-token')) {
+  throw new Error(`global default show was missing fields or leaked its token\n${defaultShown}`);
+}
+
+const inheritedTailscaleFailure = runFail([
+  '--root',
+  globalDefaultRoot,
+  '--tailscale',
+  fakeTailscale,
+  '--no-copy-url'
+], env, /Recent tailscale output/);
+if (!inheritedTailscaleFailure.includes('Applied global default connector') || !inheritedTailscaleFailure.includes(`funnel|http://127.0.0.1:${globalDefaultPort}`)) {
+  throw new Error(`fresh workspace did not launch with the inherited Tailscale settings\n${inheritedTailscaleFailure}`);
+}
+const materializedGlobalProfile = await readProfile(globalDefaultRoot, home);
+if (
+  materializedGlobalProfile.root !== await fs.realpath(globalDefaultRoot) ||
+  materializedGlobalProfile.tunnel !== 'tailscale' ||
+  materializedGlobalProfile.hostname !== 'codexpro-global.tailnet.ts.net' ||
+  materializedGlobalProfile.token !== 'codexpro-global-default-token'
+) {
+  throw new Error(`fresh workspace did not materialize the global default correctly: ${JSON.stringify({
+    ...materializedGlobalProfile,
+    token: materializedGlobalProfile.token ? '<saved>' : ''
+  })}`);
+}
+const doctorDefaultRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-doctor-'));
+const defaultDoctor = run(['doctor', '--root', doctorDefaultRoot], {
+  ...env,
+  TAILSCALE_BIN: fakeTailscale
+});
+if (!defaultDoctor.includes('Global default') || !defaultDoctor.includes('tailscale') || !defaultDoctor.includes('strict')) {
+  throw new Error(`doctor did not resolve the global default for a fresh workspace\n${defaultDoctor}`);
+}
+
+const scopedDefaultSourceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-scoped-source-'));
+const scopedDefaultRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-scoped-root-'));
+const scopedDefaultPort = await getFreePort();
+run([
+  'settings',
+  'set',
+  '--root',
+  scopedDefaultSourceRoot,
+  '--tunnel',
+  'none',
+  '--port',
+  String(scopedDefaultPort),
+  '--bash',
+  'safe',
+  '--codex-compat',
+  'strict',
+  '--token',
+  'codexpro-global-scoped-token'
+], env);
+run(['settings', 'default', 'set', '--from-root', scopedDefaultSourceRoot], env);
+const scopedDefaultRuntimePath = await runtimeStatusPath(scopedDefaultRoot, home);
+await withStartedCodexPro([
+  '--root',
+  scopedDefaultRoot,
+  '--no-copy-url'
+], env, async (child) => {
+  const runtime = await waitForJson(
+    scopedDefaultRuntimePath,
+    (data) => data.tunnel === 'none' && data.pid === child.pid,
+    'scoped global default runtime status'
+  );
+  const realScopedRoot = await fs.realpath(scopedDefaultRoot);
+  const response = await fetch(`http://127.0.0.1:${scopedDefaultPort}/healthz?codexpro_token=codexpro-global-scoped-token`);
+  const health = await response.json();
+  if (
+    response.status !== 200 ||
+    health.defaultRoot !== realScopedRoot ||
+    JSON.stringify(health.allowedRoots) !== JSON.stringify([realScopedRoot]) ||
+    health.bashMode !== 'safe' ||
+    health.codexCompatMode !== 'strict' ||
+    runtime.root !== realScopedRoot
+  ) {
+    throw new Error(`global default broadened or changed the fresh workspace: ${JSON.stringify({ health, runtime })}`);
+  }
+});
+if (!runInteractiveQuit([
+  '--root',
+  globalDefaultInteractiveRoot,
+  '--no-copy-url'
+], env)) {
+  throw new Error('fresh interactive workspace did not reach the control prompt without a setup question');
+}
+
+const noProfileRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'codexpro-settings-global-disabled-'));
+const noProfilePort = await getFreePort();
+await withStartedCodexPro([
+  '--root',
+  noProfileRoot,
+  '--no-profile',
+  '--tunnel',
+  'none',
+  '--port',
+  String(noProfilePort),
+  '--no-copy-url'
+], env, async () => {});
+try {
+  await readProfile(noProfileRoot, home);
+  throw new Error('--no-profile unexpectedly materialized the global default');
+} catch (error) {
+  if (error?.code !== 'ENOENT') throw error;
+}
+
 const listed = run(['settings', 'list'], env);
 if (!listed.includes(root) || !listed.includes('codexpro-test.ngrok-free.app') || !listed.includes('codexpro-test.tailnet.ts.net')) {
   throw new Error(`settings list missing saved profile\n${listed}`);
@@ -838,6 +1011,15 @@ if (!deleted.includes('Deleted saved settings')) {
 }
 
 run(['settings', 'delete', '--root', reuseRoot, '--yes'], env);
+
+const defaultDeleted = run(['settings', 'default', 'delete', '--yes'], env);
+if (!defaultDeleted.includes('Deleted the global default connector')) {
+  throw new Error(`expected global default delete output, got:\n${defaultDeleted}`);
+}
+const defaultAfterDelete = run(['settings', 'default', 'show'], env);
+if (!defaultAfterDelete.includes('No global default connector')) {
+  throw new Error(`expected empty global default after delete, got:\n${defaultAfterDelete}`);
+}
 
 const afterDelete = run(['settings', 'show', '--root', root], env);
 if (!afterDelete.includes('No saved settings')) {

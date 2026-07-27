@@ -322,3 +322,54 @@ compatibility and safe bash defaults.
   one-connector/no-per-project-setup workflow therefore still needs an explicit
   shared-connector-default feature or an intentionally broad allowed-root hub;
   do not silently broaden access from one project to an entire drive.
+
+### v11: Global default connector with current-directory workspace isolation
+
+The user explicitly requested on 2026-07-27 that a new project should start
+with only `cd /path/to/project` followed by `codexpro start`, without a
+per-project setup prompt or `settings use` command.
+
+- [x] Add one permission-protected global default connector profile containing
+  reusable connection and safety settings, but never a workspace root or extra
+  allowed roots.
+- [x] When a workspace has no saved profile, materialize the global default for
+  that exact current directory before first-run setup; explicit CLI/environment
+  tunnel settings and `--no-profile` must continue to take precedence.
+- [x] Add explicit show/set/delete commands for the global default so its state
+  is auditable and reversible without displaying saved tokens.
+- [x] Verify that a fresh workspace starts non-interactively with the shared
+  Tailscale hostname/token while the runtime workspace and allowed-root remain
+  the fresh current directory only.
+- [x] Run focused, full smoke, stress, package, global-install, and live
+  workspace-switch checks before treating the workflow as complete.
+
+The focused settings regression, full smoke suite, and stress suite pass. The
+new regression proves that Tailscale hostname/token settings materialize into a
+fresh workspace, an interactive fresh workspace reaches the control panel
+without a setup question, the global file is mode `0600` and omits roots, token
+output stays redacted, `--no-profile` bypasses inheritance, and `/healthz`
+reports exactly the fresh current directory as both `defaultRoot` and the sole
+`allowedRoots` entry. The first focused run exposed an incomplete persistent
+Tailscale test double that could not satisfy public `ts.net` health; the test
+was corrected to separate Tailscale command/profile inheritance from a
+local-only live scope probe without weakening the production acceptance
+contract.
+
+The installable v11 package SHA-256 is
+`7b91e46602203b80ef4e19171ca5abccb0da0d02f56f5cdadc06536ff2148391`.
+After explicit approval, the global launcher hash matches the tested source at
+`0ec95ff6bd09624cb2f4c43a0ec36a6bae4d54ec9bb43c530e78ffc5b59ac248`.
+The pre/post aggregate hash of all workspace profiles remains
+`ce5e9446ff4f8bd72d0662304d1d5d824840c2e6c27d614acfd7b26abe07bd59`.
+The new global default is mode `0600`, has SHA-256
+`a41f04670e0dbf01e8b8b833417a256157dd300f6efe281e11fb2750cc3a7f2b`,
+stores a token without printing it, and contains none of `root`, `profilePath`,
+`defaultProfilePath`, `allowRoots`, `allowHome`, or `host`.
+
+A real temporary new directory was started using exactly `codexpro start` with
+no project settings command. Public health reported that directory as both
+`defaultRoot` and the sole `allowedRoots` entry with `bash=safe` and
+`codexCompatMode=strict`. Its generated workspace profile and temporary
+directory were removed, while the global default was retained. The original
+`/Volumes/ORICO/美国出口和对美信任` service was then restored; its public health
+again reports only that workspace with the same safe/strict policy.
