@@ -373,3 +373,9 @@ no project settings command. Public health reported that directory as both
 directory were removed, while the global default was retained. The original
 `/Volumes/ORICO/美国出口和对美信任` service was then restored; its public health
 again reports only that workspace with the same safe/strict policy.
+
+The implementation was committed as `9fc1a0f` and pushed to the existing
+[`juliaError/codexpro_mo#5`](https://github.com/juliaError/codexpro_mo/pull/5)
+draft PR. Its title and body now cover both credential-safe launcher output and
+the global-default connector workflow. The PR remains draft and is not merged
+into `main` without a separate publication decision.
