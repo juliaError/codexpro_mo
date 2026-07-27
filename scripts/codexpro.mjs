@@ -31,6 +31,8 @@ Usage:
   codexpro native
   codexpro start --root /path/to/repo
   codexpro settings
+  codexpro settings default set
+  codexpro settings default show
   codexpro doctor
   codexpro connection-test --root /path/to/repo
   codexpro inspect --root /path/to/repo [--json]
@@ -50,7 +52,7 @@ Usage:
 
 Options:
   --root <dir>              Workspace root. Default: current directory.
-  --from-root <dir>         Copy saved settings from another workspace with settings use.
+  --from-root <dir>         Source workspace for settings use or settings default set.
   --allow-root <dir>        Additional allowed root. Can be repeated.
   --allow-home              Allow opening any workspace under your home directory.
   --mode <agent|handoff|pro>
@@ -109,7 +111,7 @@ Options:
   --ngrok <path>            ngrok executable. Default: PATH.
   --ngrok-config <path>     Optional ngrok config file path.
   --tailscale <path>        tailscale executable. Default: PATH.
-  --no-profile              Do not load a saved ~/.codexpro workspace profile.
+  --no-profile              Do not load workspace or global-default profiles.
   --save-config             Save setup choices for this workspace when using setup.
   --no-save-config          Do not save setup choices when using setup.
   --yes                     Confirm settings delete/reset without prompting.
@@ -184,6 +186,9 @@ Workspace settings:
   codexpro settings list
   codexpro settings set --tunnel ngrok --hostname your-domain.ngrok-free.dev
   codexpro settings use
+  codexpro settings default set
+  codexpro settings default show
+  codexpro settings default delete --yes
   codexpro settings delete --yes
 
 Preflight diagnostics:
@@ -624,6 +629,10 @@ function profilePathForRoot(root) {
   return path.join(profileDir(), `${profileIdForRoot(root)}.json`);
 }
 
+function globalDefaultProfilePath() {
+  return path.join(codexProHome(), 'default-profile.json');
+}
+
 function runtimeDir() {
   return path.join(codexProHome(), 'runtime');
 }
@@ -648,6 +657,17 @@ function loadWorkspaceProfile(root) {
   if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return {};
   if (profile.root && profile.root !== root) return {};
   return { ...profile, profilePath };
+}
+
+function loadGlobalDefaultProfile() {
+  const defaultProfilePath = globalDefaultProfilePath();
+  if (!fs.existsSync(defaultProfilePath)) return {};
+  const profile = readJsonFile(defaultProfilePath);
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return {};
+  return {
+    ...globalDefaultProfilePayload(profile),
+    defaultProfilePath
+  };
 }
 
 function listWorkspaceProfiles() {
@@ -687,6 +707,28 @@ function saveWorkspaceProfile(root, profile) {
     fs.chmodSync(filePath, 0o600);
   } catch {}
   return filePath;
+}
+
+function saveGlobalDefaultProfile(profile) {
+  const filePath = globalDefaultProfilePath();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
+  const payload = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    ...globalDefaultProfilePayload(profile)
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {}
+  return filePath;
+}
+
+function deleteGlobalDefaultProfile() {
+  const filePath = globalDefaultProfilePath();
+  if (!fs.existsSync(filePath)) return false;
+  fs.rmSync(filePath, { force: true });
+  return true;
 }
 
 function saveRuntimeConnection(root, details, options = {}) {
@@ -743,12 +785,55 @@ function reusableProfilePayload(profile, overrides = {}) {
     root,
     updatedAt,
     profilePath,
+    defaultProfilePath,
     ...rest
   } = profile || {};
   return {
     ...rest,
     ...overrides
   };
+}
+
+const GLOBAL_DEFAULT_PROFILE_FIELDS = [
+  'port',
+  'mode',
+  'tunnel',
+  'hostname',
+  'tunnelName',
+  'ngrokConfig',
+  'cloudflareConfig',
+  'cloudflareTokenFile',
+  'cloudflareToken',
+  'token',
+  'bash',
+  'bashTranscript',
+  'codexSessions',
+  'codexDir',
+  'codexCompat',
+  'bashSession',
+  'requireBashSession',
+  'write',
+  'toolMode',
+  'toolCards',
+  'widgetDomain',
+  'noInstallCloudflared'
+];
+
+function globalDefaultProfilePayload(profile) {
+  const payload = {};
+  for (const field of GLOBAL_DEFAULT_PROFILE_FIELDS) {
+    if (profile?.[field] !== undefined && profile[field] !== '') payload[field] = profile[field];
+  }
+  return payload;
+}
+
+function materializeGlobalDefaultProfile(root, args, profile) {
+  if (profile.profilePath || args.noProfile || hasExplicitTunnelInput(args)) return profile;
+  const globalDefault = loadGlobalDefaultProfile();
+  if (!globalDefault.defaultProfilePath) return profile;
+  const savedPath = saveWorkspaceProfile(root, globalDefaultProfilePayload(globalDefault));
+  statusLine('ok', `Applied global default connector to this workspace: ${savedPath}`);
+  return loadWorkspaceProfile(root);
 }
 
 function optionValue(args, profile, field, envNames = [], fallback = undefined) {
@@ -2741,19 +2826,22 @@ function createConnectorDetails(endpoint, token, localBase = '') {
   };
 }
 
+function displayServerUrl(serverUrl) {
+  return redactForLog(serverUrl);
+}
+
 function printCreateAppFields(details) {
   console.log('Create App fields:');
   console.log('');
   console.log('  Name: CodexPro');
   console.log('  Description: Local coding workspace bridge for ChatGPT.');
   console.log('  Connection: Server URL');
-  console.log(`  Server URL: ${details.serverUrl}`);
+  console.log(`  Server URL: ${displayServerUrl(details.serverUrl)}`);
+  console.log('  Full URL: copied to the clipboard; press c to copy it again.');
   console.log('  Authentication: No Authentication / None');
   console.log('');
   if (details.token) {
-    console.log('If your ChatGPT UI supports custom headers instead, you can use:');
-    console.log('');
-    console.log(`  Authorization: Bearer ${details.token}`);
+    console.log('CodexPro authentication is embedded in the copied URL. The token is not printed.');
   } else {
     console.log('Authorization: disabled');
   }
@@ -2780,15 +2868,15 @@ function printConnectorBlock(endpoint, token, options = {}) {
   console.log(`  Connector  ${publicHttps ? 'public HTTPS' : 'local HTTP'}`);
   if (copied.ok) {
     console.log(`  URL        copied with ${copied.command}`);
-    console.log(`  Server URL ${serverUrl}`);
+    console.log(`  Server URL ${displayServerUrl(serverUrl)}`);
   } else if (shouldCopy) {
-    console.log('  URL        copy failed; copy manually:');
-    console.log(serverUrl);
+    console.log('  URL        copy failed; the token-protected URL was not printed.');
+    console.log(`  Endpoint   ${displayServerUrl(serverUrl)}`);
   } else if (options.copyUrl === false && publicHttps) {
-    console.log('  URL        not copied; press c to copy or u to show');
+    console.log('  URL        not copied; press c to copy or u to show a redacted preview');
   } else if (!publicHttps) {
     console.log('  URL        local HTTP only');
-    console.log(serverUrl);
+    console.log(displayServerUrl(serverUrl));
   }
   if (options.openChatgpt) {
     statusLine(opened ? 'ok' : 'warn', opened ? 'Opened ChatGPT connector settings' : 'Could not open ChatGPT automatically');
@@ -2797,7 +2885,7 @@ function printConnectorBlock(endpoint, token, options = {}) {
   if (options.connectionTest) {
     console.log(paint('bold', 'Connection test'));
     console.log('  1. In ChatGPT, open Settings -> Plugins and create a development plugin.');
-    console.log('  2. Paste the Server URL above and choose Authentication: No Authentication.');
+    console.log('  2. Paste the copied Server URL and choose Authentication: No Authentication.');
     console.log('  3. Watch this terminal for: [CodexPro] POST /mcp received');
     console.log('');
     console.log('  No POST /mcp     ChatGPT or the tunnel did not reach CodexPro.');
@@ -2815,7 +2903,7 @@ function printControlHelp() {
   console.log('Controls');
   console.log('  Enter  open ChatGPT connector settings in your browser');
   console.log('  c      copy Server URL again');
-  console.log('  u      print Server URL only');
+  console.log('  u      print a redacted Server URL preview');
   console.log('  o      open local setup/status page');
   console.log('  p      print Create App fields');
   console.log('  m      print mode help');
@@ -2901,7 +2989,11 @@ async function runDoctor(argv) {
   }
 
   const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
-  const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+  let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+  if (!args.noProfile && !profile.profilePath) {
+    profile = loadGlobalDefaultProfile();
+  }
+  const profileSource = profile.profilePath ?? profile.defaultProfilePath ?? '';
   const effectiveArgs = { ...profile, ...args };
   const tunnel = optionValue(args, profile, 'tunnel', ['CODEXPRO_TUNNEL'], 'cloudflare');
   const host = optionValue(args, profile, 'host', ['CODEXPRO_HOST'], '127.0.0.1');
@@ -2949,13 +3041,14 @@ async function runDoctor(argv) {
     labelValue('Codex compat', codexCompat),
     labelValue('Tunnel', tunnel),
     ...(stableHostname ? [labelValue('Hostname', stableHostname)] : []),
-    ...(profile.profilePath ? [labelValue('Profile', profile.profilePath)] : [])
+    ...(profile.profilePath ? [labelValue('Profile', profile.profilePath)] : []),
+    ...(profile.defaultProfilePath ? [labelValue('Global default', profile.defaultProfilePath)] : [])
   ]);
 
   record(compareMajorVersion(process.versions.node, 20) ? 'ok' : 'fail', 'Node', `v${process.versions.node} (requires >=20)`);
   record(fs.existsSync(httpPath) && fs.existsSync(serverPath) ? 'ok' : 'fail', 'Build artifacts', fs.existsSync(httpPath) ? 'dist ready' : 'missing dist/http.js; run npm install && npm run build');
   record(fs.existsSync(path.join(projectRoot, 'package.json')) ? 'ok' : 'fail', 'Package root', projectRoot);
-  record(profile.profilePath ? 'ok' : 'warn', 'Saved profile', profile.profilePath ? profileSummary(profile) || profile.profilePath : 'none for this workspace');
+  record(profileSource ? 'ok' : 'warn', 'Saved profile', profileSource ? profileSummary(profile) || profileSource : 'none for this workspace or global default');
   record(['agent', 'handoff', 'pro'].includes(mode) ? 'ok' : 'fail', 'Mode', ['agent', 'handoff', 'pro'].includes(mode) ? mode : '--mode must be agent, handoff, or pro');
   record(['off', 'safe', 'full'].includes(bash) ? 'ok' : 'fail', 'Bash mode', ['off', 'safe', 'full'].includes(bash) ? bash : '--bash must be off, safe, or full');
   record(!writeError && ['off', 'handoff', 'workspace'].includes(write) ? 'ok' : 'fail', 'Write mode', writeError || write);
@@ -3430,6 +3523,29 @@ function printProfile(root, profile) {
   ]);
 }
 
+function printGlobalDefaultProfile(profile = loadGlobalDefaultProfile()) {
+  if (!profile.defaultProfilePath) {
+    printBox('CodexPro global default', [
+      'No global default connector is saved.',
+      'Run codexpro settings default set from a configured workspace.'
+    ]);
+    return;
+  }
+  const safe = sanitizedProfile(profile);
+  printBox('CodexPro global default', [
+    labelValue('Profile', profile.defaultProfilePath),
+    labelValue('Tunnel', safe.tunnel ?? 'cloudflare'),
+    ...(safe.hostname ? [labelValue('Hostname', safe.hostname)] : []),
+    ...(safe.port ? [labelValue('Port', safe.port)] : []),
+    ...(safe.mode ? [labelValue('Mode', safe.mode)] : []),
+    labelValue('Bash', safe.bash ?? 'safe'),
+    labelValue('Codex compat', safe.codexCompat ?? 'strict'),
+    ...(safe.write ? [labelValue('Write', safe.write)] : []),
+    ...(safe.toolMode ? [labelValue('Tool mode', safe.toolMode)] : []),
+    ...(safe.token ? [labelValue('Token', safe.token)] : [])
+  ]);
+}
+
 function printProfileList(profiles = listWorkspaceProfiles()) {
   if (!profiles.length) {
     printBox('CodexPro saved setups', [
@@ -3523,13 +3639,61 @@ async function chooseReusableProfile(rl, currentRoot, profiles = listWorkspacePr
 
 async function runSettings(argv) {
   const action = argv[0] && !argv[0].startsWith('--') ? argv[0] : '';
-  const args = parseArgs(action ? argv.slice(1) : argv);
+  const actionArgs = action ? argv.slice(1) : argv;
+  const defaultSubaction = action === 'default' && actionArgs[0] && !actionArgs[0].startsWith('--')
+    ? actionArgs[0]
+    : '';
+  const args = parseArgs(defaultSubaction ? actionArgs.slice(1) : actionArgs);
   if (args.help) {
     usage();
     return;
   }
   const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
   const profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+
+  if (action === 'default') {
+    const subaction = defaultSubaction || (args.fromRoot ? 'set' : 'show');
+    if (subaction === 'show') {
+      printGlobalDefaultProfile();
+      return;
+    }
+    if (subaction === 'set' || subaction === 'use') {
+      const sourceRoot = realDir(args.fromRoot ?? root);
+      const source = loadWorkspaceProfile(sourceRoot);
+      if (!source.profilePath) {
+        throw new Error(`No saved workspace settings found for global default source: ${sourceRoot}`);
+      }
+      const savedPath = saveGlobalDefaultProfile(source);
+      statusLine('ok', `Saved global default connector: ${savedPath}`);
+      printGlobalDefaultProfile();
+      return;
+    }
+    if (subaction === 'delete' || subaction === 'reset' || subaction === 'remove') {
+      const current = loadGlobalDefaultProfile();
+      if (!current.defaultProfilePath) {
+        statusLine('warn', 'No global default connector is saved.');
+        return;
+      }
+      if (!args.yes && process.stdin.isTTY) {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        try {
+          const answer = await ask(rl, 'Delete the global default connector?', 'no');
+          if (!['y', 'yes'].includes(answer.trim().toLowerCase())) {
+            statusLine('warn', 'Global default delete cancelled.');
+            return;
+          }
+        } finally {
+          rl.close();
+        }
+      } else if (!args.yes) {
+        throw new Error('Use codexpro settings default delete --yes in non-interactive shells.');
+      }
+      deleteGlobalDefaultProfile();
+      statusLine('ok', 'Deleted the global default connector.');
+      return;
+    }
+    throw new Error(`Unknown global default action: ${subaction}`);
+  }
 
   if (action === 'list' || action === 'ls') {
     printProfileList();
@@ -3684,14 +3848,14 @@ function runControlPanel(details, cleanup = cleanupChildren) {
         console.log(copied.ok ? `\nServer URL copied with ${copied.command}.` : '\nCould not copy automatically.');
         writeControlPrompt();
       } else if (normalized === 'u') {
-        console.log(`\n${details.serverUrl}`);
+        console.log(`\n${displayServerUrl(details.serverUrl)}`);
         writeControlPrompt();
       } else if (normalized === 'o') {
         if (!details.localStatusUrl) {
           console.log('\nNo local status page URL is available for this run.');
         } else {
           const opened = openUrl(details.localStatusUrl);
-          console.log(opened ? '\nOpened local CodexPro setup/status page.' : `\nCould not open automatically. Open this URL:\n${details.localStatusUrl}`);
+          console.log(opened ? '\nOpened local CodexPro setup/status page.' : `\nCould not open automatically. The token-protected local URL was not printed.\n${displayServerUrl(details.localStatusUrl)}`);
         }
         writeControlPrompt();
       } else if (normalized === 'p') {
@@ -3822,6 +3986,7 @@ async function main() {
 
   const root = realDir(args.root ?? process.env.CODEXPRO_ROOT ?? process.cwd());
   let profile = args.noProfile ? {} : loadWorkspaceProfile(root);
+  profile = materializeGlobalDefaultProfile(root, args, profile);
   profile = await maybeConfigureFirstRun(root, args, profile);
   const effectiveArgs = { ...profile, ...args };
   if (profile.profilePath && !args.noProfile) {

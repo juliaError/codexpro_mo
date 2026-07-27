@@ -274,3 +274,112 @@ changes below.
   clipboard without printing or recording its authentication token. Because a
   quick-tunnel hostname changes on restart, the user must paste this new URL
   into the existing `CodexPro_america1` connector once.
+
+### v10: Stable Tailscale Funnel and credential-safe launcher output
+
+The user chose a stable public connector URL that does not require a privately
+owned domain. This phase replaces the current workspace's Cloudflare quick
+tunnel with a device-stable Tailscale Funnel while preserving strict Codex
+compatibility and safe bash defaults.
+
+- [x] Install the official Tailscale 1.98.9 standalone macOS package and let the
+  user approve its system/VPN extension and complete personal-account login.
+- [x] Verify the client is running, MagicDNS is enabled, and the Mac has a
+  stable device-specific `*.ts.net` Funnel hostname. Keep the actual hostname
+  out of the public repository audit record.
+- [x] Enable Funnel once and verify that it proxies the existing local CodexPro
+  service at `127.0.0.1:8788` through the stable HTTPS hostname.
+- [x] Change only the `/Volumes/ORICO/美国出口和对美信任` saved profile from
+  `cloudflare` to `tailscale`; preserve port 8788, agent mode, strict Codex
+  compatibility, and the saved authentication-token behavior.
+- [x] Detect that the launcher printed the full token-bearing Server URL,
+  immediately stop the exposed instance, and rotate its token before any
+  ChatGPT connector was created from it.
+- [x] Change launcher and control-panel output so the full Server URL is copied
+  to the clipboard but every terminal preview is redacted, including initial
+  startup, `u`, `p`, copy-failure, and local-status fallbacks. Update English
+  and Chinese documentation accordingly.
+- [x] Verify initial, `u`, and `p` output with a synthetic token; no synthetic
+  token text appeared. `git diff --check`, build, the full smoke suite, and the
+  stress suite pass.
+- [x] After explicit approval, package and globally install the tested fork. The
+  package SHA-256 is
+  `6411a6df6f3e7b59e343d679b4903e6a03beac99a288b51a71b87ce0c31811ae`;
+  the installed launcher SHA-256 matches the tested source at
+  `f59c42dfde58abea418b3485beba2ad37a8681e2b1b978677eddafbf92826fd6`.
+- [x] Restart the real service with the global CLI. The terminal prints only a
+  redacted Server URL while `pbcopy` contains a valid 64-character-token URL.
+  Public health returns HTTP 200 for the intended workspace with `bash=safe`;
+  session A bootstrap followed by session B `bash pwd` succeeds in strict mode.
+  `codexpro doctor --port 8799` reports ready while the production service
+  remains active on port 8788.
+
+#### Project-switching boundary
+
+- The fixed `ts.net` hostname belongs to this Mac, not to one repository, so a
+  ChatGPT connector can retain the same hostname when CodexPro changes projects.
+- Workspace profiles currently store authentication tokens independently. A
+  one-connector/no-per-project-setup workflow therefore still needs an explicit
+  shared-connector-default feature or an intentionally broad allowed-root hub;
+  do not silently broaden access from one project to an entire drive.
+
+### v11: Global default connector with current-directory workspace isolation
+
+The user explicitly requested on 2026-07-27 that a new project should start
+with only `cd /path/to/project` followed by `codexpro start`, without a
+per-project setup prompt or `settings use` command.
+
+- [x] Add one permission-protected global default connector profile containing
+  reusable connection and safety settings, but never a workspace root or extra
+  allowed roots.
+- [x] When a workspace has no saved profile, materialize the global default for
+  that exact current directory before first-run setup; explicit CLI/environment
+  tunnel settings and `--no-profile` must continue to take precedence.
+- [x] Add explicit show/set/delete commands for the global default so its state
+  is auditable and reversible without displaying saved tokens.
+- [x] Verify that a fresh workspace starts non-interactively with the shared
+  Tailscale hostname/token while the runtime workspace and allowed-root remain
+  the fresh current directory only.
+- [x] Run focused, full smoke, stress, package, global-install, and live
+  workspace-switch checks before treating the workflow as complete.
+
+The focused settings regression, full smoke suite, and stress suite pass. The
+new regression proves that Tailscale hostname/token settings materialize into a
+fresh workspace, an interactive fresh workspace reaches the control panel
+without a setup question, the global file is mode `0600` and omits roots, token
+output stays redacted, `--no-profile` bypasses inheritance, and `/healthz`
+reports exactly the fresh current directory as both `defaultRoot` and the sole
+`allowedRoots` entry. The first focused run exposed an incomplete persistent
+Tailscale test double that could not satisfy public `ts.net` health; the test
+was corrected to separate Tailscale command/profile inheritance from a
+local-only live scope probe without weakening the production acceptance
+contract.
+
+The installable v11 package SHA-256 is
+`7b91e46602203b80ef4e19171ca5abccb0da0d02f56f5cdadc06536ff2148391`.
+After explicit approval, the global launcher hash matches the tested source at
+`0ec95ff6bd09624cb2f4c43a0ec36a6bae4d54ec9bb43c530e78ffc5b59ac248`.
+The pre/post aggregate hash of all workspace profiles remains
+`ce5e9446ff4f8bd72d0662304d1d5d824840c2e6c27d614acfd7b26abe07bd59`.
+The new global default is mode `0600`, has SHA-256
+`a41f04670e0dbf01e8b8b833417a256157dd300f6efe281e11fb2750cc3a7f2b`,
+stores a token without printing it, and contains none of `root`, `profilePath`,
+`defaultProfilePath`, `allowRoots`, `allowHome`, or `host`.
+
+A real temporary new directory was started using exactly `codexpro start` with
+no project settings command. Public health reported that directory as both
+`defaultRoot` and the sole `allowedRoots` entry with `bash=safe` and
+`codexCompatMode=strict`. Its generated workspace profile and temporary
+directory were removed, while the global default was retained. The original
+`/Volumes/ORICO/美国出口和对美信任` service was then restored; its public health
+again reports only that workspace with the same safe/strict policy.
+
+The implementation was committed as `9fc1a0f` and pushed to the existing
+[`juliaError/codexpro_mo#5`](https://github.com/juliaError/codexpro_mo/pull/5)
+draft PR. Its title and body now cover both credential-safe launcher output and
+the global-default connector workflow. On 2026-07-27 the user explicitly
+authorized promotion and merge after one final audit. That audit found only the
+five intended files, no committed real device hostname or 64-hex connector
+token, matching source/installed launcher hashes, a clean worktree, and a
+`CLEAN`/`MERGEABLE` PR with no configured GitHub checks or review blockers. The
+full build, smoke, and stress suites also passed again after the authorization.
