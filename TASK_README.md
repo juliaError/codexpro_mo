@@ -377,5 +377,9 @@ again reports only that workspace with the same safe/strict policy.
 The implementation was committed as `9fc1a0f` and pushed to the existing
 [`juliaError/codexpro_mo#5`](https://github.com/juliaError/codexpro_mo/pull/5)
 draft PR. Its title and body now cover both credential-safe launcher output and
-the global-default connector workflow. The PR remains draft and is not merged
-into `main` without a separate publication decision.
+the global-default connector workflow. On 2026-07-27 the user explicitly
+authorized promotion and merge after one final audit. That audit found only the
+five intended files, no committed real device hostname or 64-hex connector
+token, matching source/installed launcher hashes, a clean worktree, and a
+`CLEAN`/`MERGEABLE` PR with no configured GitHub checks or review blockers. The
+full build, smoke, and stress suites also passed again after the authorization.
